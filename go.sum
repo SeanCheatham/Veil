@@ -1,2 +1,4 @@
 github.com/antithesishq/antithesis-sdk-go v0.6.0 h1:v/YViLhFYkZOEEof4AXjD5AgGnGM84YHF4RqEwp6I2g=
 github.com/antithesishq/antithesis-sdk-go v0.6.0/go.mod h1:IUpT2DPAKh6i/YhSbt6Gl3v2yvUZjmKncl7U91fup7E=
+golang.org/x/crypto v0.49.0 h1:+Ng2ULVvLHnJ/ZFEq4KdcDd/cfjrrjjNSXNzxg0Y4U4=
+golang.org/x/crypto v0.49.0/go.mod h1:ErX4dUh2UM+CFYiXZRTcMpEcN8b/1gxEuv3nODoYtCA=
