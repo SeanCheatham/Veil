@@ -1,0 +1,132 @@
+# Veil - Docker Compose Scaffold
+# All services defined with alpine placeholder images
+# Will be replaced with actual service images as they are implemented
+
+services:
+  # Relay nodes (x5) - Onion layer peeling, mix-and-forward
+  relay-node-1:
+    image: alpine:latest
+    container_name: veil-relay-node-1
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=relay-1
+      - NODE_TYPE=relay
+
+  relay-node-2:
+    image: alpine:latest
+    container_name: veil-relay-node-2
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=relay-2
+      - NODE_TYPE=relay
+
+  relay-node-3:
+    image: alpine:latest
+    container_name: veil-relay-node-3
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=relay-3
+      - NODE_TYPE=relay
+
+  relay-node-4:
+    image: alpine:latest
+    container_name: veil-relay-node-4
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=relay-4
+      - NODE_TYPE=relay
+
+  relay-node-5:
+    image: alpine:latest
+    container_name: veil-relay-node-5
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=relay-5
+      - NODE_TYPE=relay
+
+  # Validator nodes (x3) - BFT consensus, message pool ordering
+  validator-node-1:
+    image: alpine:latest
+    container_name: veil-validator-node-1
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=validator-1
+      - NODE_TYPE=validator
+
+  validator-node-2:
+    image: alpine:latest
+    container_name: veil-validator-node-2
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=validator-2
+      - NODE_TYPE=validator
+
+  validator-node-3:
+    image: alpine:latest
+    container_name: veil-validator-node-3
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=validator-3
+      - NODE_TYPE=validator
+
+  # Message pool (x1) - Append-only ciphertext store
+  message-pool:
+    image: alpine:latest
+    container_name: veil-message-pool
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=pool-1
+      - NODE_TYPE=pool
+
+  # Sender workload (x1) - Test driver: generates and sends messages
+  sender-workload:
+    image: alpine:latest
+    container_name: veil-sender-workload
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=sender-1
+      - NODE_TYPE=workload
+    depends_on:
+      - message-pool
+      - relay-node-1
+      - relay-node-2
+      - relay-node-3
+      - relay-node-4
+      - relay-node-5
+
+  # Receiver workload (x1) - Test driver: polls pool, asserts delivery
+  receiver-workload:
+    image: alpine:latest
+    container_name: veil-receiver-workload
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=receiver-1
+      - NODE_TYPE=workload
+    depends_on:
+      - message-pool
+
+networks:
+  veil-network:
+    driver: bridge
