@@ -1,0 +1,27 @@
+# Dockerfile for byzantine-relay service
+# Multi-stage build optimized for Antithesis testing
+
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy entire source tree
+COPY . .
+
+# Build the byzantine-relay binary
+RUN CGO_ENABLED=0 go build -o /byzantine-relay ./cmd/byzantine-relay
+
+# Final stage
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates curl
+
+COPY --from=builder /byzantine-relay /byzantine-relay
+
+EXPOSE 8081
+
+ENTRYPOINT ["/byzantine-relay"]

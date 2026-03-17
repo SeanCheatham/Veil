@@ -1,0 +1,25 @@
+# Dockerfile for sender-workload service
+# Multi-stage build optimized for Antithesis testing
+
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy entire source tree
+COPY . .
+
+# Build the sender-workload binary
+RUN CGO_ENABLED=0 go build -o /sender-workload ./cmd/sender-workload
+
+# Final stage
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates curl
+
+COPY --from=builder /sender-workload /sender-workload
+
+ENTRYPOINT ["/sender-workload"]

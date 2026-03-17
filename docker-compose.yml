@@ -1,13 +1,13 @@
-# Veil - Docker Compose Scaffold
-# All services defined with alpine placeholder images
-# Will be replaced with actual service images as they are implemented
+# Veil - Docker Compose
+# All services built from source with multi-stage Dockerfiles optimized for Antithesis testing
 
 services:
   # Relay nodes (x5) - Onion layer peeling, mix-and-forward
   relay-node-1:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.relay-node
     container_name: veil-relay-node-1
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -17,11 +17,17 @@ services:
       - EPOCH_CLOCK_URL=http://epoch-clock:8083
       - RELAY_PEERS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081
       - VALIDATOR_ENDPOINTS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   relay-node-2:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.relay-node
     container_name: veil-relay-node-2
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -31,11 +37,17 @@ services:
       - EPOCH_CLOCK_URL=http://epoch-clock:8083
       - RELAY_PEERS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081
       - VALIDATOR_ENDPOINTS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   relay-node-3:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.relay-node
     container_name: veil-relay-node-3
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -45,11 +57,17 @@ services:
       - EPOCH_CLOCK_URL=http://epoch-clock:8083
       - RELAY_PEERS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081
       - VALIDATOR_ENDPOINTS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   relay-node-4:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.relay-node
     container_name: veil-relay-node-4
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -59,11 +77,17 @@ services:
       - EPOCH_CLOCK_URL=http://epoch-clock:8083
       - RELAY_PEERS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081
       - VALIDATOR_ENDPOINTS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   relay-node-5:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.relay-node
     container_name: veil-relay-node-5
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -73,12 +97,18 @@ services:
       - EPOCH_CLOCK_URL=http://epoch-clock:8083
       - RELAY_PEERS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081
       - VALIDATOR_ENDPOINTS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Byzantine relay node (x1) - Malicious relay for adversarial testing
   relay-node-byzantine:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.byzantine-relay
     container_name: veil-relay-node-byzantine
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -88,12 +118,18 @@ services:
       - EPOCH_CLOCK_URL=http://epoch-clock:8083
       - RELAY_PEERS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081,http://relay-node-byzantine:8081
       - VALIDATOR_ENDPOINTS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Validator nodes (x3) - BFT consensus, message pool ordering
   validator-node-1:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.validator-node
     container_name: veil-validator-node-1
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -102,11 +138,17 @@ services:
       - PORT=8082
       - VALIDATOR_PEERS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
       - MESSAGE_POOL_URL=http://message-pool:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   validator-node-2:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.validator-node
     container_name: veil-validator-node-2
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -115,11 +157,17 @@ services:
       - PORT=8082
       - VALIDATOR_PEERS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
       - MESSAGE_POOL_URL=http://message-pool:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   validator-node-3:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.validator-node
     container_name: veil-validator-node-3
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -128,23 +176,35 @@ services:
       - PORT=8082
       - VALIDATOR_PEERS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
       - MESSAGE_POOL_URL=http://message-pool:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Message pool (x1) - Append-only ciphertext store
   message-pool:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.message-pool
     container_name: veil-message-pool
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
       - NODE_ID=pool-1
       - NODE_TYPE=pool
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Epoch clock (x1) - Epoch timer and key rotation coordinator
   epoch-clock:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.epoch-clock
     container_name: veil-epoch-clock
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -152,12 +212,18 @@ services:
       - NODE_TYPE=epoch
       - PORT=8083
       - EPOCH_INTERVAL=10s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Sender workload (x1) - Test driver: generates and sends messages
   sender-workload:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.sender-workload
     container_name: veil-sender-workload
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:
@@ -179,9 +245,10 @@ services:
 
   # Receiver workload (x1) - Test driver: polls pool, asserts delivery
   receiver-workload:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.receiver-workload
     container_name: veil-receiver-workload
-    command: ["sleep", "infinity"]
     networks:
       - veil-network
     environment:

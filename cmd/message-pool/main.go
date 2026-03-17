@@ -48,6 +48,19 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+// handleHealth handles GET /health for health checks.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "healthy",
+	})
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -56,6 +69,7 @@ func main() {
 
 	http.HandleFunc("/batch", handleBatch)
 	http.HandleFunc("/messages", handleMessages)
+	http.HandleFunc("/health", handleHealth)
 
 	log.Printf("Message pool service starting on port %s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {

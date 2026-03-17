@@ -1,0 +1,27 @@
+# Dockerfile for message-pool service
+# Multi-stage build optimized for Antithesis testing
+
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy entire source tree
+COPY . .
+
+# Build the message-pool binary
+RUN CGO_ENABLED=0 go build -o /message-pool ./cmd/message-pool
+
+# Final stage
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates curl
+
+COPY --from=builder /message-pool /message-pool
+
+EXPOSE 8080
+
+ENTRYPOINT ["/message-pool"]

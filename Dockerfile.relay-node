@@ -1,0 +1,27 @@
+# Dockerfile for relay-node service
+# Multi-stage build optimized for Antithesis testing
+
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy entire source tree
+COPY . .
+
+# Build the relay-node binary
+RUN CGO_ENABLED=0 go build -o /relay-node ./cmd/relay-node
+
+# Final stage
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates curl
+
+COPY --from=builder /relay-node /relay-node
+
+EXPOSE 8081
+
+ENTRYPOINT ["/relay-node"]
