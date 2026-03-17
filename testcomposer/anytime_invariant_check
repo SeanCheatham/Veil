@@ -1,0 +1,6 @@
+#!/bin/bash
+# anytime_invariant_check: Permanent check for anonymity set, relay unlinkability, epoch health
+# Stub: will be implemented to continuously verify system invariants
+
+sleep 1
+exit 0

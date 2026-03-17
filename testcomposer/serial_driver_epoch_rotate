@@ -1,0 +1,6 @@
+#!/bin/bash
+# serial_driver_epoch_rotate: Disruptive - force epoch boundary with in-flight messages
+# Stub: will be implemented to test epoch rotation under load
+
+sleep 1
+exit 0

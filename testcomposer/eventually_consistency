@@ -1,0 +1,6 @@
+#!/bin/bash
+# eventually_consistency: Post-fault check - all sent messages delivered, pool consistent
+# Stub: will be implemented to verify eventual consistency after faults
+
+sleep 1
+exit 0

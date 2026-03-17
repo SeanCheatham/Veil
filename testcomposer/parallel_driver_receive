@@ -1,0 +1,6 @@
+#!/bin/bash
+# parallel_driver_receive: Continuous poll pool, assert delivery
+# Stub: will be implemented to drive message receiving workload
+
+sleep 1
+exit 0
