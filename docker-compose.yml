@@ -96,6 +96,19 @@ services:
       - NODE_ID=pool-1
       - NODE_TYPE=pool
 
+  # Epoch clock (x1) - Epoch timer and key rotation coordinator
+  epoch-clock:
+    image: alpine:latest
+    container_name: veil-epoch-clock
+    command: ["sleep", "infinity"]
+    networks:
+      - veil-network
+    environment:
+      - NODE_ID=epoch-1
+      - NODE_TYPE=epoch
+      - PORT=8083
+      - EPOCH_INTERVAL=10s
+
   # Sender workload (x1) - Test driver: generates and sends messages
   sender-workload:
     image: alpine:latest
