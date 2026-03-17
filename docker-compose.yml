@@ -64,6 +64,9 @@ services:
     environment:
       - NODE_ID=validator-1
       - NODE_TYPE=validator
+      - PORT=8082
+      - VALIDATOR_PEERS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+      - MESSAGE_POOL_URL=http://message-pool:8080
 
   validator-node-2:
     image: alpine:latest
@@ -74,6 +77,9 @@ services:
     environment:
       - NODE_ID=validator-2
       - NODE_TYPE=validator
+      - PORT=8082
+      - VALIDATOR_PEERS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+      - MESSAGE_POOL_URL=http://message-pool:8080
 
   validator-node-3:
     image: alpine:latest
@@ -84,6 +90,9 @@ services:
     environment:
       - NODE_ID=validator-3
       - NODE_TYPE=validator
+      - PORT=8082
+      - VALIDATOR_PEERS=http://validator-node-1:8082,http://validator-node-2:8082,http://validator-node-3:8082
+      - MESSAGE_POOL_URL=http://message-pool:8080
 
   # Message pool (x1) - Append-only ciphertext store
   message-pool:
