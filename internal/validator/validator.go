@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/veil-protocol/veil/internal/cover"
 	"github.com/veil-protocol/veil/internal/pool"
 	"github.com/veil-protocol/veil/internal/properties"
 )
@@ -89,6 +90,9 @@ type Validator struct {
 
 	// HTTP client for peer communication
 	client *http.Client
+
+	// Cover traffic generator for injecting dummy messages
+	coverGen *cover.CoverTrafficGenerator
 }
 
 // NewValidator creates a new validator instance.
@@ -108,6 +112,7 @@ func NewValidator(nodeID, peers, messagePoolURL string) *Validator {
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		coverGen: cover.NewCoverTrafficGenerator(),
 	}
 }
 
@@ -163,6 +168,37 @@ func (v *Validator) TriggerBatch(ctx context.Context) error {
 	messages := make([]ProposalMessage, len(v.pendingMsgs))
 	copy(messages, v.pendingMsgs)
 	v.pendingMsgs = make([]ProposalMessage, 0)
+
+	// Convert to pool.Message for cover traffic injection
+	poolMessages := make([]pool.Message, len(messages))
+	for i, msg := range messages {
+		poolMessages[i] = pool.Message{
+			ID:         msg.ID,
+			Ciphertext: msg.Ciphertext,
+			Hash:       msg.Hash,
+		}
+	}
+
+	// Inject cover traffic (30% probability, 1-3 messages)
+	originalCount := len(poolMessages)
+	poolMessages = v.coverGen.InjectCoverTraffic(poolMessages)
+	coverInjected := len(poolMessages) > originalCount
+
+	// Convert back to ProposalMessage
+	messages = make([]ProposalMessage, len(poolMessages))
+	for i, msg := range poolMessages {
+		messages[i] = ProposalMessage{
+			ID:         msg.ID,
+			Ciphertext: msg.Ciphertext,
+			Hash:       msg.Hash,
+		}
+	}
+
+	// Observe cover traffic injection for Antithesis property
+	if coverInjected {
+		properties.ObserveCoverTraffic(true, nextBatch)
+		log.Printf("[%s] Injected %d cover messages into batch %d", v.nodeID, len(poolMessages)-originalCount, nextBatch)
+	}
 
 	// Create batch hash for agreement
 	batchHash := computeBatchHash(messages)

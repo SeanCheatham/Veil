@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/veil-protocol/veil/internal/cover"
 )
 
 func TestParsePeers(t *testing.T) {
@@ -489,13 +491,28 @@ func TestTriggerBatchWithMockPeers(t *testing.T) {
 	}
 
 	// Verify pool received the batch
+	// Note: Cover traffic may be injected (30% probability), so we may have more than 1 message
 	select {
 	case received := <-poolReceived:
-		if len(received) != 1 {
-			t.Errorf("pool should receive 1 message, got %d", len(received))
+		if len(received) < 1 {
+			t.Errorf("pool should receive at least 1 message, got %d", len(received))
 		}
-		if received[0].ID != "msg-1" {
-			t.Errorf("received wrong message ID: %s", received[0].ID)
+		// Count real (non-cover) messages and verify our original message is present
+		realMessages := 0
+		foundOriginal := false
+		for _, msg := range received {
+			if !cover.IsCoverTraffic(msg.ID) {
+				realMessages++
+				if msg.ID == "msg-1" {
+					foundOriginal = true
+				}
+			}
+		}
+		if realMessages != 1 {
+			t.Errorf("expected exactly 1 real message, got %d", realMessages)
+		}
+		if !foundOriginal {
+			t.Error("original message 'msg-1' not found in batch")
 		}
 	case <-time.After(time.Second):
 		t.Error("pool did not receive batch")
