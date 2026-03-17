@@ -148,8 +148,13 @@ services:
     environment:
       - NODE_ID=sender-1
       - NODE_TYPE=workload
+      - RELAY_ENDPOINTS=http://relay-node-1:8081,http://relay-node-2:8081,http://relay-node-3:8081,http://relay-node-4:8081,http://relay-node-5:8081
+      - EPOCH_CLOCK_URL=http://epoch-clock:8083
+      # Deterministic receiver X25519 public key (derived from sha256("veil-test-receiver") as seed)
+      - RECEIVER_PUBKEY=1mgNxDbQcLwJI9FKQE/vGnQWSG5bcNxvSDyiosjAwm0=
     depends_on:
       - message-pool
+      - epoch-clock
       - relay-node-1
       - relay-node-2
       - relay-node-3

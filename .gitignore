@@ -6,6 +6,13 @@
 *.dylib
 /bin/
 
+# Go binaries (built with go build)
+/sender-workload
+/receiver-workload
+/relay-node
+/epoch-clock
+/message-pool
+
 # Test binary, built with `go test -c`
 *.test
 
