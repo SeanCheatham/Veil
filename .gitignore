@@ -12,6 +12,7 @@
 /relay-node
 /epoch-clock
 /message-pool
+/byzantine-relay
 
 # Test binary, built with `go test -c`
 *.test
