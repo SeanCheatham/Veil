@@ -171,6 +171,7 @@ services:
     environment:
       - NODE_ID=receiver-1
       - NODE_TYPE=workload
+      - MESSAGE_POOL_URL=http://message-pool:8080
     depends_on:
       - message-pool
 
