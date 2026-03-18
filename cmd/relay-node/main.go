@@ -10,12 +10,13 @@ import (
 	"strconv"
 
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+	"github.com/veil/veil/internal/crypto"
 	"github.com/veil/veil/internal/relay"
 )
 
 // ForwardRequest is the request body for POST /forward.
 type ForwardRequest struct {
-	Payload string `json:"payload"` // base64-encoded
+	Payload string `json:"payload"` // onion-encrypted payload (binary as string)
 }
 
 // ForwardResponse is the response body for POST /forward.
@@ -50,12 +51,29 @@ func main() {
 	// Initialize the relay
 	r = relay.NewRelay(relayID, nextHop, validatorURL)
 
+	// Load or generate cryptographic keys
+	privKeyB64 := os.Getenv("RELAY_PRIVATE_KEY")
+	if privKeyB64 == "" {
+		// Fall back to static keys for development/testing
+		privKeyB64 = crypto.GetRelayPrivateKeyByID(relayID)
+		log.Printf("No RELAY_PRIVATE_KEY set, using static key for relay %d", relayID)
+	}
+
+	keyPair, err := crypto.LoadOrGenerateKey(privKeyB64)
+	if err != nil {
+		log.Fatalf("Failed to load/generate keys: %v", err)
+	}
+
+	r.SetKeys(keyPair.Private, keyPair.Public)
+
 	log.Printf("Relay initialized with ID=%d, nextHop=%q, validatorURL=%s", relayID, nextHop, validatorURL)
+	log.Printf("Relay public key: %s", keyPair.Public.Base64())
 
 	// Signal to Antithesis that setup is complete
 	lifecycle.SetupComplete(map[string]any{
-		"service":  "relay-node",
-		"relay_id": relayID,
+		"service":    "relay-node",
+		"relay_id":   relayID,
+		"public_key": keyPair.Public.Base64(),
 	})
 
 	http.HandleFunc("/health", healthHandler)
@@ -89,7 +107,7 @@ func forwardHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Forward the message (payload is already base64-encoded, pass through as-is)
+	// Forward the message (payload is the onion-encrypted data)
 	if err := r.ForwardMessage([]byte(fwdReq.Payload)); err != nil {
 		log.Printf("Failed to forward message: %v", err)
 		http.Error(w, "Failed to forward message", http.StatusInternalServerError)

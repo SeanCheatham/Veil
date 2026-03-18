@@ -11,14 +11,19 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
+	"github.com/veil/veil/internal/crypto"
 )
 
 // Sender is an Antithesis test driver that generates and sends messages
-// through the Veil relay network.
+// through the Veil relay network using onion encryption.
 type Sender struct {
 	relayURL   string
 	httpClient *http.Client
 	messageID  atomic.Int64
+
+	// Relay public keys for onion wrapping
+	relayPubKeys []crypto.PublicKey
+	relayHops    []string
 }
 
 // NewSender creates a new Sender with the given relay URL.
@@ -28,6 +33,8 @@ func NewSender(relayURL string) *Sender {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		relayPubKeys: crypto.GetRelayPublicKeys(),
+		relayHops:    crypto.GetRelayHops(),
 	}
 }
 
@@ -38,24 +45,31 @@ func (s *Sender) GenerateTestMessage(id int) []byte {
 
 	// Antithesis assertion: generated messages have valid structure
 	assert.Always(len(payload) > 0, "Generated messages have valid structure", map[string]any{
-		"message_id": id,
+		"message_id":  id,
 		"payload_len": len(payload),
 	})
 
 	return payload
 }
 
-// SendMessage POSTs a message payload to the relay-node's /forward endpoint.
-// The payload is base64-encoded before sending to ensure it can traverse the relay network.
+// SendMessage encrypts the payload in onion layers and POSTs it to the first relay node.
+// The payload is first base64-encoded, then wrapped in onion encryption for each relay.
 func (s *Sender) SendMessage(payload []byte) error {
 	msgID := s.messageID.Add(1)
 
-	// Base64 encode the payload for transmission through the relay network
+	// Base64 encode the payload (this is what the receiver will decode after all layers are peeled)
 	encodedPayload := base64.StdEncoding.EncodeToString(payload)
 
+	// Wrap the message in onion encryption layers
+	wrappedPayload, err := crypto.WrapMessage([]byte(encodedPayload), s.relayPubKeys, s.relayHops)
+	if err != nil {
+		return fmt.Errorf("failed to wrap message in onion: %w", err)
+	}
+
 	// Build the request body
+	// The wrapped payload is binary, so we send it as a string (JSON will handle escaping)
 	reqBody := map[string]string{
-		"payload": encodedPayload,
+		"payload": string(wrappedPayload),
 	}
 
 	jsonBody, err := json.Marshal(reqBody)

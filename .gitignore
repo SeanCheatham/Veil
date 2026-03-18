@@ -5,6 +5,7 @@ bin/
 /validator-node
 /relay-node
 /receiver-workload
+/sender-workload
 /parallel_driver_verify_messages
 /finally_delivery_check
 /anytime_no_spurious_messages
