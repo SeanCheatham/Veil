@@ -4,6 +4,10 @@ bin/
 /consensus-node
 /validator-node
 /relay-node
+/receiver-workload
+/parallel_driver_verify_messages
+/finally_delivery_check
+/anytime_no_spurious_messages
 
 # Go
 *.exe
