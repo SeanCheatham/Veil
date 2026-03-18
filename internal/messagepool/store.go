@@ -13,22 +13,44 @@ import (
 
 // Store is a thread-safe append-only message store.
 type Store struct {
-	mu       sync.RWMutex
-	messages []common.Message
+	mu                 sync.RWMutex
+	messages           []common.Message
+	committedSequences map[uint64]bool // Track committed consensus sequences for deduplication
 }
 
 // NewStore creates a new message store.
 func NewStore() *Store {
 	return &Store{
-		messages: make([]common.Message, 0),
+		messages:           make([]common.Message, 0),
+		committedSequences: make(map[uint64]bool),
 	}
 }
 
 // Append adds a message to the store with an auto-incrementing sequence number.
 // Returns the created message with its assigned ID and sequence.
+// If consensusSequence is non-nil, it's used for deduplication - duplicate sequences are rejected.
 func (s *Store) Append(payload []byte) (common.Message, error) {
+	return s.AppendWithConsensus(payload, nil)
+}
+
+// AppendWithConsensus adds a message with optional consensus sequence deduplication.
+// If consensusSequence is provided and already committed, returns an empty message with no error (idempotent).
+func (s *Store) AppendWithConsensus(payload []byte, consensusSequence *uint64) (common.Message, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Check for duplicate consensus sequence
+	if consensusSequence != nil {
+		if s.committedSequences[*consensusSequence] {
+			// Already committed this sequence - idempotent success
+			assert.Sometimes(true, "Duplicate consensus sequence rejected", map[string]any{
+				"consensus_sequence": *consensusSequence,
+			})
+			return common.Message{}, nil
+		}
+		// Mark this consensus sequence as committed
+		s.committedSequences[*consensusSequence] = true
+	}
 
 	prevLen := len(s.messages)
 
@@ -84,6 +106,13 @@ func (s *Store) Count() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return uint64(len(s.messages))
+}
+
+// CommittedSequenceCount returns the number of committed consensus sequences.
+func (s *Store) CommittedSequenceCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.committedSequences)
 }
 
 // isOrdered checks if messages are in ascending sequence order.

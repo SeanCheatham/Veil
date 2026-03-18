@@ -2,23 +2,21 @@
 package validator
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
+	"github.com/veil/veil/internal/consensus"
 )
 
 // ValidatorStatus represents the current state of a validator node.
 type ValidatorStatus struct {
-	ID            int   `json:"id"`
-	PeerCount     int   `json:"peer_count"`
-	ProposalCount int64 `json:"proposal_count"`
+	ID            int            `json:"id"`
+	PeerCount     int            `json:"peer_count"`
+	ProposalCount int64          `json:"proposal_count"`
+	Consensus     map[string]any `json:"consensus,omitempty"`
 }
 
 // Validator represents a BFT consensus participant.
@@ -29,6 +27,7 @@ type Validator struct {
 	proposalCount  int64
 	messagePoolURL string
 	httpClient     *http.Client
+	consensus      *consensus.PBFTConsensus
 }
 
 // NewValidator creates a new validator with the given ID and configuration.
@@ -44,20 +43,22 @@ func NewValidator(id int, messagePoolURL string) *Validator {
 	}
 }
 
-// SetPeers sets the list of peer validators.
+// SetPeers sets the list of peer validators and initializes consensus.
 func (v *Validator) SetPeers(peers []string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.peers = peers
+
+	// Initialize consensus with peer URLs
+	v.consensus = consensus.NewPBFTConsensus(v.id, peers, v.messagePoolURL)
 }
 
-// ProposeMessage receives a message proposal and forwards it to the message-pool.
-// In a real BFT implementation, this would trigger prepare/commit phases.
-// For now, it simply forwards the proposal directly to the message-pool.
+// ProposeMessage receives a message proposal and initiates consensus.
 func (v *Validator) ProposeMessage(payload []byte) error {
 	v.mu.Lock()
 	v.proposalCount++
 	currentCount := v.proposalCount
+	cons := v.consensus
 	v.mu.Unlock()
 
 	// Antithesis assertion: proposals are being accepted
@@ -66,12 +67,15 @@ func (v *Validator) ProposeMessage(payload []byte) error {
 		"proposal_count": currentCount,
 	})
 
-	// Forward to message-pool
-	err := v.forwardToMessagePool(payload)
+	if cons == nil {
+		return fmt.Errorf("consensus not initialized")
+	}
 
-	// Antithesis assertion: valid proposals eventually reach message-pool
-	// We consider network errors as retryable
-	assert.Always(err == nil || isRetryableError(err), "Valid proposals eventually reach message-pool", map[string]any{
+	// Initiate consensus for this message
+	err := cons.Propose(payload)
+
+	// Antithesis assertion: valid proposals eventually reach consensus
+	assert.Always(err == nil || isRetryableError(err), "Valid proposals enter consensus", map[string]any{
 		"validator_id": v.id,
 		"error":        fmt.Sprintf("%v", err),
 	})
@@ -79,31 +83,30 @@ func (v *Validator) ProposeMessage(payload []byte) error {
 	return err
 }
 
-// forwardToMessagePool sends the payload to the message-pool service.
-func (v *Validator) forwardToMessagePool(payload []byte) error {
-	// The message-pool expects base64-encoded payload in JSON
-	reqBody := map[string]string{
-		"payload": base64.StdEncoding.EncodeToString(payload),
+// HandlePrepare processes a PREPARE message from a peer validator.
+func (v *Validator) HandlePrepare(msg consensus.ConsensusMessage) error {
+	v.mu.RLock()
+	cons := v.consensus
+	v.mu.RUnlock()
+
+	if cons == nil {
+		return fmt.Errorf("consensus not initialized")
 	}
 
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+	return cons.HandlePrepare(msg)
+}
+
+// HandleCommit processes a COMMIT message from a peer validator.
+func (v *Validator) HandleCommit(msg consensus.ConsensusMessage) error {
+	v.mu.RLock()
+	cons := v.consensus
+	v.mu.RUnlock()
+
+	if cons == nil {
+		return fmt.Errorf("consensus not initialized")
 	}
 
-	url := v.messagePoolURL + "/messages"
-	resp, err := v.httpClient.Post(url, "application/json", bytes.NewReader(jsonBody))
-	if err != nil {
-		return fmt.Errorf("failed to forward to message-pool: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("message-pool returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return cons.HandleCommit(msg)
 }
 
 // GetStatus returns the current state of the validator.
@@ -111,11 +114,17 @@ func (v *Validator) GetStatus() ValidatorStatus {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
-	return ValidatorStatus{
+	status := ValidatorStatus{
 		ID:            v.id,
 		PeerCount:     len(v.peers),
 		ProposalCount: v.proposalCount,
 	}
+
+	if v.consensus != nil {
+		status.Consensus = v.consensus.GetStatus()
+	}
+
+	return status
 }
 
 // isRetryableError determines if an error is transient and can be retried.

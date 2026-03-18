@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+	"github.com/veil/veil/internal/consensus"
 	"github.com/veil/veil/internal/validator"
 )
 
@@ -21,6 +23,11 @@ type ProposeRequest struct {
 
 // ProposeResponse is the response body for POST /propose.
 type ProposeResponse struct {
+	Status string `json:"status"`
+}
+
+// ConsensusResponse is the response body for consensus endpoints.
+type ConsensusResponse struct {
 	Status string `json:"status"`
 }
 
@@ -48,22 +55,35 @@ func main() {
 	// Initialize the validator
 	v = validator.NewValidator(validatorID, messagePoolURL)
 
-	// Set known peers (other validators in the network)
-	// In a real implementation, this would be discovered dynamically
-	peers := []string{"validator-node0", "validator-node1", "validator-node2"}
-	v.SetPeers(peers)
+	// Get peer validator URLs from environment
+	// Format: comma-separated URLs like "http://validator-node0:8081,http://validator-node2:8081"
+	peerURLs := []string{}
+	if peersEnv := os.Getenv("VALIDATOR_PEERS"); peersEnv != "" {
+		for _, peer := range strings.Split(peersEnv, ",") {
+			peer = strings.TrimSpace(peer)
+			if peer != "" {
+				peerURLs = append(peerURLs, peer)
+			}
+		}
+	}
 
-	log.Printf("Validator initialized with ID=%d, peers=%v, message-pool=%s", validatorID, peers, messagePoolURL)
+	// Set peers (this initializes consensus)
+	v.SetPeers(peerURLs)
+
+	log.Printf("Validator initialized with ID=%d, peer_urls=%v, message-pool=%s", validatorID, peerURLs, messagePoolURL)
 
 	// Signal to Antithesis that setup is complete
 	lifecycle.SetupComplete(map[string]any{
 		"service":      "validator-node",
 		"validator_id": validatorID,
+		"peer_count":   len(peerURLs),
 	})
 
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/propose", proposeHandler)
 	http.HandleFunc("/status", statusHandler)
+	http.HandleFunc("/consensus/prepare", consensusPrepareHandler)
+	http.HandleFunc("/consensus/commit", consensusCommitHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -99,10 +119,10 @@ func proposeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Propose the message
+	// Propose the message (initiates consensus)
 	if err := v.ProposeMessage(payload); err != nil {
 		log.Printf("Failed to propose message: %v", err)
-		http.Error(w, "Failed to forward proposal", http.StatusInternalServerError)
+		http.Error(w, "Failed to initiate consensus", http.StatusInternalServerError)
 		return
 	}
 
@@ -125,4 +145,58 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
+}
+
+func consensusPrepareHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var msg consensus.ConsensusMessage
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if err := v.HandlePrepare(msg); err != nil {
+		log.Printf("Failed to handle prepare: %v", err)
+		http.Error(w, "Failed to handle prepare", http.StatusInternalServerError)
+		return
+	}
+
+	resp := ConsensusResponse{
+		Status: "ok",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func consensusCommitHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var msg consensus.ConsensusMessage
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if err := v.HandleCommit(msg); err != nil {
+		log.Printf("Failed to handle commit: %v", err)
+		http.Error(w, "Failed to handle commit", http.StatusInternalServerError)
+		return
+	}
+
+	resp := ConsensusResponse{
+		Status: "ok",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }

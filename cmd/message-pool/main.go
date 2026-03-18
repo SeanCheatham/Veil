@@ -16,13 +16,15 @@ import (
 
 // AppendRequest is the request body for POST /messages.
 type AppendRequest struct {
-	Payload string `json:"payload"` // base64-encoded
+	Payload           string  `json:"payload"`                      // base64-encoded
+	ConsensusSequence *uint64 `json:"consensus_sequence,omitempty"` // optional consensus sequence for deduplication
 }
 
 // AppendResponse is the response body for POST /messages.
 type AppendResponse struct {
 	ID       string `json:"id"`
 	Sequence uint64 `json:"sequence"`
+	Status   string `json:"status,omitempty"` // "created" or "duplicate"
 }
 
 // MessageResponse is the JSON representation of a message for API responses.
@@ -89,18 +91,31 @@ func handlePostMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Append to store
-	msg, err := store.Append(payload)
+	// Append to store with optional consensus sequence deduplication
+	msg, err := store.AppendWithConsensus(payload, req.ConsensusSequence)
 	if err != nil {
 		log.Printf("Failed to append message: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Return response
+	// Check if this was a duplicate (empty message returned)
+	if msg.ID == "" {
+		// Duplicate consensus sequence - idempotent success
+		resp := AppendResponse{
+			Status: "duplicate",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	// Return response for new message
 	resp := AppendResponse{
 		ID:       msg.ID,
 		Sequence: msg.Sequence,
+		Status:   "created",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
