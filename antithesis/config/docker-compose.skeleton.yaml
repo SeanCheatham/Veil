@@ -1,6 +1,6 @@
 # Minimal skeleton configuration for Antithesis validation
 # This compose file is incrementally expanded as services are implemented.
-# Currently contains: hello, message-pool, validator-nodes, first_setup, pool_health, validator_health
+# Currently contains: hello, message-pool, validator-nodes, relay-nodes, first_setup, pool_health, validator_health, relay_health
 
 services:
   # Hello service - minimal HTTP server with /health endpoint
@@ -125,6 +125,169 @@ services:
       message-pool:
         condition: service_healthy
 
+  # Relay nodes - onion routing chain (stub forwarding for now)
+  # Chain: relay-node0 → relay-node1 → relay-node2 → relay-node3 → relay-node4 → validator-node0
+  relay-node0:
+    image: ${REGISTRY:-veil}/relay-node:${TAG:-latest}
+    container_name: relay-node0
+    hostname: relay-node0
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=relays"
+    environment:
+      - RELAY_ID=0
+      - NEXT_HOP=relay-node1:8080
+      - RELAY_MASTER_SEED=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=
+      - EPOCH_DURATION_SECONDS=60
+      - PORT=8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
+
+  relay-node1:
+    image: ${REGISTRY:-veil}/relay-node:${TAG:-latest}
+    container_name: relay-node1
+    hostname: relay-node1
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=relays"
+    environment:
+      - RELAY_ID=1
+      - NEXT_HOP=relay-node2:8080
+      - RELAY_MASTER_SEED=VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=
+      - EPOCH_DURATION_SECONDS=60
+      - PORT=8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
+
+  relay-node2:
+    image: ${REGISTRY:-veil}/relay-node:${TAG:-latest}
+    container_name: relay-node2
+    hostname: relay-node2
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=relays"
+    environment:
+      - RELAY_ID=2
+      - NEXT_HOP=relay-node3:8080
+      - RELAY_MASTER_SEED=BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=
+      - EPOCH_DURATION_SECONDS=60
+      - PORT=8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
+
+  relay-node3:
+    image: ${REGISTRY:-veil}/relay-node:${TAG:-latest}
+    container_name: relay-node3
+    hostname: relay-node3
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=relays"
+    environment:
+      - RELAY_ID=3
+      - NEXT_HOP=relay-node4:8080
+      - RELAY_MASTER_SEED=DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=
+      - EPOCH_DURATION_SECONDS=60
+      - PORT=8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
+
+  relay-node4:
+    image: ${REGISTRY:-veil}/relay-node:${TAG:-latest}
+    container_name: relay-node4
+    hostname: relay-node4
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=relays"
+    environment:
+      - RELAY_ID=4
+      - NEXT_HOP=
+      - VALIDATOR_URL=http://validator-node0:8081
+      - RELAY_MASTER_SEED=FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
+      - EPOCH_DURATION_SECONDS=60
+      - PORT=8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
+
   # first_setup workload - validates services_reachable property (hello)
   # Naming convention: first_* runs once before fault injection
   first_setup:
@@ -176,4 +339,29 @@ services:
       validator-node1:
         condition: service_healthy
       validator-node2:
+        condition: service_healthy
+
+  # relay_health workload - validates relay chain health and message propagation
+  # Naming convention: first_* runs once before fault injection
+  first_relay_health:
+    image: ${REGISTRY:-veil}/relay_health:${TAG:-latest}
+    container_name: first_relay_health
+    hostname: first_relay_health
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/relay_health/Dockerfile
+    environment:
+      - RELAY_URLS=http://relay-node0:8080,http://relay-node1:8080,http://relay-node2:8080,http://relay-node3:8080,http://relay-node4:8080
+      - MESSAGE_POOL_URL=http://message-pool:8082
+    depends_on:
+      relay-node0:
+        condition: service_healthy
+      relay-node1:
+        condition: service_healthy
+      relay-node2:
+        condition: service_healthy
+      relay-node3:
+        condition: service_healthy
+      relay-node4:
         condition: service_healthy
