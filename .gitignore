@@ -1,3 +1,8 @@
+# Go binary build artifacts at repo root
+/message-pool
+/pool_health
+/hello
+
 # Dependencies
 vendor/
 
