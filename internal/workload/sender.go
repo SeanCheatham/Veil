@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/veil/veil/internal/crypto"
+	"github.com/veil/veil/internal/epoch"
 )
 
 // Sender is an Antithesis test driver that generates and sends messages
@@ -21,9 +23,18 @@ type Sender struct {
 	httpClient *http.Client
 	messageID  atomic.Int64
 
-	// Relay public keys for onion wrapping
+	// Relay public keys for onion wrapping (legacy mode)
 	relayPubKeys []crypto.PublicKey
 	relayHops    []string
+
+	// Epoch-based key management
+	epochManager     *epoch.EpochManager
+	relayMasterSeeds [][]byte
+
+	// Cached epoch keys - protected by keyMu
+	keyMu            sync.RWMutex
+	cachedEpoch      uint64
+	cachedRelayKeys  []crypto.PublicKey
 }
 
 // NewSender creates a new Sender with the given relay URL.
@@ -36,6 +47,12 @@ func NewSender(relayURL string) *Sender {
 		relayPubKeys: crypto.GetRelayPublicKeys(),
 		relayHops:    crypto.GetRelayHops(),
 	}
+}
+
+// SetEpochManager configures the sender for epoch-based key derivation.
+func (s *Sender) SetEpochManager(em *epoch.EpochManager, relayMasterSeeds [][]byte) {
+	s.epochManager = em
+	s.relayMasterSeeds = relayMasterSeeds
 }
 
 // GenerateTestMessage creates an identifiable test payload with format VEIL-MSG-{id}-{timestamp}.
@@ -60,8 +77,14 @@ func (s *Sender) SendMessage(payload []byte) error {
 	// Base64 encode the payload (this is what the receiver will decode after all layers are peeled)
 	encodedPayload := base64.StdEncoding.EncodeToString(payload)
 
+	// Get the appropriate relay keys for wrapping
+	relayKeys, err := s.getRelayKeys()
+	if err != nil {
+		return fmt.Errorf("failed to get relay keys: %w", err)
+	}
+
 	// Wrap the message in onion encryption layers
-	wrappedPayload, err := crypto.WrapMessage([]byte(encodedPayload), s.relayPubKeys, s.relayHops)
+	wrappedPayload, err := crypto.WrapMessage([]byte(encodedPayload), relayKeys, s.relayHops)
 	if err != nil {
 		return fmt.Errorf("failed to wrap message in onion: %w", err)
 	}
@@ -98,7 +121,86 @@ func (s *Sender) SendMessage(payload []byte) error {
 	return nil
 }
 
+// getRelayKeys returns the relay public keys to use for wrapping.
+// If epoch management is enabled, derives keys for the current epoch.
+// Otherwise, falls back to static keys.
+func (s *Sender) getRelayKeys() ([]crypto.PublicKey, error) {
+	// If epoch management is not configured, use static keys
+	if s.epochManager == nil || len(s.relayMasterSeeds) == 0 {
+		return s.relayPubKeys, nil
+	}
+
+	currentEpoch := s.epochManager.CurrentEpoch()
+
+	// Check if we have cached keys for this epoch
+	s.keyMu.RLock()
+	if s.cachedEpoch == currentEpoch && len(s.cachedRelayKeys) > 0 {
+		keys := s.cachedRelayKeys
+		s.keyMu.RUnlock()
+		return keys, nil
+	}
+	s.keyMu.RUnlock()
+
+	// Derive new keys for this epoch
+	keys, err := s.deriveEpochKeys(currentEpoch)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the keys
+	s.keyMu.Lock()
+	s.cachedEpoch = currentEpoch
+	s.cachedRelayKeys = keys
+	s.keyMu.Unlock()
+
+	return keys, nil
+}
+
+// deriveEpochKeys derives public keys for all relays for the given epoch.
+func (s *Sender) deriveEpochKeys(epochNum uint64) ([]crypto.PublicKey, error) {
+	keys := make([]crypto.PublicKey, len(s.relayMasterSeeds))
+
+	for i, seed := range s.relayMasterSeeds {
+		pubKey, err := epoch.DeriveEpochPublicKey(seed, i, epochNum)
+		if err != nil {
+			return nil, fmt.Errorf("failed to derive key for relay %d epoch %d: %w", i, epochNum, err)
+		}
+		keys[i] = pubKey
+	}
+
+	return keys, nil
+}
+
 // GetMessageCount returns the total number of messages sent.
 func (s *Sender) GetMessageCount() int64 {
 	return s.messageID.Load()
+}
+
+// GetCurrentEpoch returns the current epoch number if epoch management is enabled.
+func (s *Sender) GetCurrentEpoch() (uint64, bool) {
+	if s.epochManager == nil {
+		return 0, false
+	}
+	return s.epochManager.CurrentEpoch(), true
+}
+
+// RefreshRelayKeys forces a refresh of the cached relay keys.
+// This can be called when an epoch transition is detected.
+func (s *Sender) RefreshRelayKeys() error {
+	if s.epochManager == nil || len(s.relayMasterSeeds) == 0 {
+		return nil // No-op if epoch management is not enabled
+	}
+
+	currentEpoch := s.epochManager.CurrentEpoch()
+	keys, err := s.deriveEpochKeys(currentEpoch)
+	if err != nil {
+		return err
+	}
+
+	s.keyMu.Lock()
+	s.cachedEpoch = currentEpoch
+	s.cachedRelayKeys = keys
+	s.keyMu.Unlock()
+
+	return nil
 }

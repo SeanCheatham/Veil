@@ -1,5 +1,7 @@
 package crypto
 
+import "encoding/base64"
+
 // Pre-generated relay keys for the 5-relay network.
 // These are static keys used for the initial implementation.
 // In production, keys would be generated per-deployment and distributed securely.
@@ -12,6 +14,18 @@ const (
 	RelayPrivateKey2 = "mQr/x27q7i1WaoguIJb7X7WGrcPyhVje8XKV84bLRUk="
 	RelayPrivateKey3 = "TaNa45Kl8VyFzColaqh++hjuF+hUFbwSLM+AnTEibgo="
 	RelayPrivateKey4 = "jTv+HtjcrBTAf01EIhQzrE5seoTPuxycRdc4VgoPaDg="
+)
+
+// Master seeds for epoch-based key derivation (base64-encoded, 32 bytes each).
+// These are used with HKDF to derive deterministic epoch-specific keys.
+// Each relay has a unique master seed. In production, these would be securely generated
+// and distributed during deployment.
+const (
+	RelayMasterSeed0 = "KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk="
+	RelayMasterSeed1 = "VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg="
+	RelayMasterSeed2 = "BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe="
+	RelayMasterSeed3 = "DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf="
+	RelayMasterSeed4 = "FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH="
 )
 
 // Relay public keys (base64-encoded, 32 bytes each)
@@ -77,4 +91,47 @@ func GetRelayPrivateKeyByID(id int) string {
 	default:
 		return ""
 	}
+}
+
+// GetRelayMasterSeedByID returns the master seed for a specific relay.
+// This is used for epoch-based key derivation.
+func GetRelayMasterSeedByID(id int) string {
+	switch id {
+	case 0:
+		return RelayMasterSeed0
+	case 1:
+		return RelayMasterSeed1
+	case 2:
+		return RelayMasterSeed2
+	case 3:
+		return RelayMasterSeed3
+	case 4:
+		return RelayMasterSeed4
+	default:
+		return ""
+	}
+}
+
+// GetRelayMasterSeeds returns all relay master seeds as byte slices.
+// Seeds are returned in order from relay 0 to relay 4.
+func GetRelayMasterSeeds() [][]byte {
+	seeds := make([][]byte, 5)
+	seedStrings := []string{
+		RelayMasterSeed0,
+		RelayMasterSeed1,
+		RelayMasterSeed2,
+		RelayMasterSeed3,
+		RelayMasterSeed4,
+	}
+
+	for i, s := range seedStrings {
+		seed, err := base64.StdEncoding.DecodeString(s)
+		if err != nil {
+			// Static seeds should always be valid
+			panic("invalid relay master seed: " + err.Error())
+		}
+		seeds[i] = seed
+	}
+
+	return seeds
 }

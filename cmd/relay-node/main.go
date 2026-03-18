@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/veil/veil/internal/crypto"
+	"github.com/veil/veil/internal/epoch"
 	"github.com/veil/veil/internal/relay"
 )
 
@@ -51,29 +53,72 @@ func main() {
 	// Initialize the relay
 	r = relay.NewRelay(relayID, nextHop, validatorURL)
 
-	// Load or generate cryptographic keys
-	privKeyB64 := os.Getenv("RELAY_PRIVATE_KEY")
-	if privKeyB64 == "" {
-		// Fall back to static keys for development/testing
-		privKeyB64 = crypto.GetRelayPrivateKeyByID(relayID)
-		log.Printf("No RELAY_PRIVATE_KEY set, using static key for relay %d", relayID)
-	}
+	// Check if epoch-based key management is enabled
+	masterSeedB64 := os.Getenv("RELAY_MASTER_SEED")
+	epochDurationStr := os.Getenv("EPOCH_DURATION_SECONDS")
 
-	keyPair, err := crypto.LoadOrGenerateKey(privKeyB64)
-	if err != nil {
-		log.Fatalf("Failed to load/generate keys: %v", err)
-	}
+	if masterSeedB64 != "" {
+		// Epoch-based key management enabled
+		masterSeed, err := base64.StdEncoding.DecodeString(masterSeedB64)
+		if err != nil {
+			log.Fatalf("Invalid RELAY_MASTER_SEED (must be base64): %v", err)
+		}
+		if len(masterSeed) != 32 {
+			log.Fatalf("RELAY_MASTER_SEED must be 32 bytes (got %d)", len(masterSeed))
+		}
 
-	r.SetKeys(keyPair.Private, keyPair.Public)
+		// Parse epoch duration
+		epochDuration := int64(epoch.DefaultDurationSeconds)
+		if epochDurationStr != "" {
+			epochDuration, err = strconv.ParseInt(epochDurationStr, 10, 64)
+			if err != nil {
+				log.Printf("Invalid EPOCH_DURATION_SECONDS %q, using default %d", epochDurationStr, epoch.DefaultDurationSeconds)
+				epochDuration = int64(epoch.DefaultDurationSeconds)
+			}
+		}
+
+		// Create epoch manager
+		em := epoch.NewEpochManager(epoch.EpochConfig{
+			DurationSeconds:    epochDuration,
+			GracePeriodSeconds: epoch.DefaultGracePeriodSeconds,
+		})
+
+		// Configure relay for epoch-based keys
+		r.SetEpochManager(em, masterSeed)
+
+		// Start key rotation
+		if err := r.StartKeyRotation(); err != nil {
+			log.Fatalf("Failed to start key rotation: %v", err)
+		}
+
+		log.Printf("Relay initialized with epoch-based keys, epoch duration: %ds", epochDuration)
+	} else {
+		// Legacy mode: use static keys
+		privKeyB64 := os.Getenv("RELAY_PRIVATE_KEY")
+		if privKeyB64 == "" {
+			// Fall back to static keys for development/testing
+			privKeyB64 = crypto.GetRelayPrivateKeyByID(relayID)
+			log.Printf("No RELAY_PRIVATE_KEY set, using static key for relay %d", relayID)
+		}
+
+		keyPair, err := crypto.LoadOrGenerateKey(privKeyB64)
+		if err != nil {
+			log.Fatalf("Failed to load/generate keys: %v", err)
+		}
+
+		r.SetKeys(keyPair.Private, keyPair.Public)
+		log.Printf("Relay public key (legacy): %s", keyPair.Public.Base64())
+	}
 
 	log.Printf("Relay initialized with ID=%d, nextHop=%q, validatorURL=%s", relayID, nextHop, validatorURL)
-	log.Printf("Relay public key: %s", keyPair.Public.Base64())
 
 	// Signal to Antithesis that setup is complete
+	status := r.GetStatus()
 	lifecycle.SetupComplete(map[string]any{
-		"service":    "relay-node",
-		"relay_id":   relayID,
-		"public_key": keyPair.Public.Base64(),
+		"service":       "relay-node",
+		"relay_id":      relayID,
+		"public_key":    status.PublicKey,
+		"current_epoch": status.CurrentEpoch,
 	})
 
 	http.HandleFunc("/health", healthHandler)

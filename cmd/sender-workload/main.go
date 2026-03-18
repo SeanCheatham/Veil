@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+	"github.com/veil/veil/internal/crypto"
+	"github.com/veil/veil/internal/epoch"
 	"github.com/veil/veil/internal/workload"
 )
 
@@ -35,14 +37,45 @@ func main() {
 	// Initialize the sender
 	sender := workload.NewSender(relayURL)
 
+	// Check if epoch-based key management is enabled
+	epochDurationStr := os.Getenv("EPOCH_DURATION_SECONDS")
+	if epochDurationStr != "" {
+		epochDuration, err := strconv.ParseInt(epochDurationStr, 10, 64)
+		if err != nil {
+			log.Printf("Invalid EPOCH_DURATION_SECONDS %q, using default %d", epochDurationStr, epoch.DefaultDurationSeconds)
+			epochDuration = int64(epoch.DefaultDurationSeconds)
+		}
+
+		// Create epoch manager
+		em := epoch.NewEpochManager(epoch.EpochConfig{
+			DurationSeconds:    epochDuration,
+			GracePeriodSeconds: epoch.DefaultGracePeriodSeconds,
+		})
+
+		// Get relay master seeds for key derivation
+		relayMasterSeeds := crypto.GetRelayMasterSeeds()
+
+		// Configure sender for epoch-based keys
+		sender.SetEpochManager(em, relayMasterSeeds)
+
+		log.Printf("Sender configured with epoch-based keys, epoch duration: %ds", epochDuration)
+		log.Printf("Current epoch: %d", em.CurrentEpoch())
+	} else {
+		log.Println("Sender using static relay keys (epoch mode disabled)")
+	}
+
 	log.Printf("Sender initialized with relayURL=%s, sendInterval=%dms", relayURL, sendIntervalMS)
 
 	// Signal to Antithesis that setup is complete
-	lifecycle.SetupComplete(map[string]any{
+	setupInfo := map[string]any{
 		"service":          "sender-workload",
 		"relay_url":        relayURL,
 		"send_interval_ms": sendIntervalMS,
-	})
+	}
+	if currentEpoch, ok := sender.GetCurrentEpoch(); ok {
+		setupInfo["current_epoch"] = currentEpoch
+	}
+	lifecycle.SetupComplete(setupInfo)
 
 	log.Println("sender-workload ready, starting message loop")
 
@@ -50,9 +83,18 @@ func main() {
 	messageID := 0
 	sendInterval := time.Duration(sendIntervalMS) * time.Millisecond
 
+	// Track epoch transitions for logging
+	var lastLoggedEpoch uint64 = 0
+
 	for {
 		messageID++
 		payload := sender.GenerateTestMessage(messageID)
+
+		// Log epoch transitions
+		if currentEpoch, ok := sender.GetCurrentEpoch(); ok && currentEpoch != lastLoggedEpoch {
+			log.Printf("Epoch transition: %d -> %d", lastLoggedEpoch, currentEpoch)
+			lastLoggedEpoch = currentEpoch
+		}
 
 		log.Printf("Sending message %d: %s", messageID, string(payload))
 
