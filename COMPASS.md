@@ -102,6 +102,8 @@ These are the races and failure modes that conventional testing cannot surface:
 
 "Ralph Wiggum style" means the agent writes code, Antithesis finds bugs with perfect reproducibility, the agent reads findings as structured feedback, and iterates. No human in the loop for individual bug cycles.
 
+IMPORTANT: You MUST load the relevant Antithesis Skills. When prompting the PM or Developer sub-agents, also instruct them to load the Antithesis skills.
+
 ### Why this works
 
 Antithesis findings are always **actionable and local**: each finding includes the exact execution trace, the specific assertion that failed, and a replay seed. The agent doesn't search the codebase for the bug — it reads the trace, identifies the violating code path, and patches precisely that.
