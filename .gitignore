@@ -1,5 +1,7 @@
 # Build artifacts
 bin/
+/message-pool
+/consensus-node
 
 # Go
 *.exe
