@@ -7,4 +7,4 @@ set -e
 echo "parallel_driver_receive: starting receiver workload..."
 
 # Run the workload binary in receiver mode
-exec /app/workload --mode=receiver
+exec /usr/local/bin/veil-workload --mode=receiver

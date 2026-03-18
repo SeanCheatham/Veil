@@ -22,18 +22,18 @@ COPY . .
 # =============================================================================
 FROM base AS builder
 
-# Build all services (these will be implemented in later phases)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-pool ./cmd/pool || echo "package main" > /tmp/stub.go && echo 'func main() { select {} }' >> /tmp/stub.go && go build -o /bin/veil-pool /tmp/stub.go
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-validator ./cmd/validator || go build -o /bin/veil-validator /tmp/stub.go
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-relay ./cmd/relay || go build -o /bin/veil-relay /tmp/stub.go
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-workload ./cmd/workload || go build -o /bin/veil-workload /tmp/stub.go
+# Build all services
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-pool ./cmd/pool
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-validator ./cmd/validator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-relay ./cmd/relay
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/veil-workload ./cmd/workload
 
 # =============================================================================
 # Runtime base - minimal image for running Go binaries
 # =============================================================================
 FROM alpine:3.19 AS runtime-base
 
-RUN apk add --no-cache ca-certificates bash
+RUN apk add --no-cache ca-certificates bash curl
 
 # Create antithesis output directory
 RUN mkdir -p /tmp/antithesis
