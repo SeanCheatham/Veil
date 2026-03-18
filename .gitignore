@@ -8,6 +8,7 @@
 /pool
 /relay
 /validator
+/workload
 /bin/
 
 # Test binary
