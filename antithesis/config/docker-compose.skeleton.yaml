@@ -1,6 +1,6 @@
 # Minimal skeleton configuration for Antithesis validation
 # This compose file is incrementally expanded as services are implemented.
-# Currently contains: hello, message-pool, validator-nodes, relay-nodes, first_setup, pool_health, validator_health, relay_health
+# Currently contains: hello, message-pool, validator-nodes, relay-nodes, sender-workload, first_setup, pool_health, validator_health, relay_health
 
 services:
   # Hello service - minimal HTTP server with /health endpoint
@@ -286,6 +286,34 @@ services:
       validator-node1:
         condition: service_healthy
       validator-node2:
+        condition: service_healthy
+
+  # sender-workload - continuous test driver that generates and sends messages
+  # This is a TEST DRIVER, not a production service (no healthcheck)
+  sender-workload:
+    image: ${REGISTRY:-veil}/sender-workload:${TAG:-latest}
+    container_name: sender-workload
+    hostname: sender-workload
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/sender-workload/Dockerfile
+    environment:
+      - RELAY_URL=http://relay-node0:8080
+      - MESSAGE_INTERVAL_MS=1000
+      - SENDER_ID=sender-0
+      - EPOCH_DURATION_SECONDS=60
+      - COVER_TRAFFIC_RATE=0.5
+    depends_on:
+      relay-node0:
+        condition: service_healthy
+      relay-node1:
+        condition: service_healthy
+      relay-node2:
+        condition: service_healthy
+      relay-node3:
+        condition: service_healthy
+      relay-node4:
         condition: service_healthy
 
   # first_setup workload - validates services_reachable property (hello)
