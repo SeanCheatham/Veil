@@ -1,6 +1,6 @@
 # Minimal skeleton configuration for Antithesis validation
 # This compose file is incrementally expanded as services are implemented.
-# Currently contains: hello, message-pool, first_setup, pool_health
+# Currently contains: hello, message-pool, validator-nodes, first_setup, pool_health, validator_health
 
 services:
   # Hello service - minimal HTTP server with /health endpoint
@@ -43,6 +43,88 @@ services:
       retries: 3
       start_period: 10s
 
+  # Validator nodes - BFT consensus for message ordering (stub consensus for now)
+  validator-node0:
+    image: ${REGISTRY:-veil}/validator-node:${TAG:-latest}
+    container_name: validator-node0
+    hostname: validator-node0
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/validator-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=validators"
+    environment:
+      - VALIDATOR_ID=0
+      - MESSAGE_POOL_URL=http://message-pool:8082
+      - VALIDATOR_PEERS=http://validator-node1:8081,http://validator-node2:8081
+      - PORT=8081
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
+  validator-node1:
+    image: ${REGISTRY:-veil}/validator-node:${TAG:-latest}
+    container_name: validator-node1
+    hostname: validator-node1
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/validator-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=validators"
+    environment:
+      - VALIDATOR_ID=1
+      - MESSAGE_POOL_URL=http://message-pool:8082
+      - VALIDATOR_PEERS=http://validator-node0:8081,http://validator-node2:8081
+      - PORT=8081
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
+  validator-node2:
+    image: ${REGISTRY:-veil}/validator-node:${TAG:-latest}
+    container_name: validator-node2
+    hostname: validator-node2
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/validator-node/Dockerfile
+    labels:
+      - "antithesis.partition.group=validators"
+    environment:
+      - VALIDATOR_ID=2
+      - MESSAGE_POOL_URL=http://message-pool:8082
+      - VALIDATOR_PEERS=http://validator-node0:8081,http://validator-node1:8081
+      - PORT=8081
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
   # first_setup workload - validates services_reachable property (hello)
   # Naming convention: first_* runs once before fault injection
   first_setup:
@@ -73,4 +155,25 @@ services:
       - MESSAGE_POOL_URL=http://message-pool:8082
     depends_on:
       message-pool:
+        condition: service_healthy
+
+  # validator_health workload - validates validator health, submit, and pool integration
+  # Naming convention: first_* runs once before fault injection
+  first_validator_health:
+    image: ${REGISTRY:-veil}/validator_health:${TAG:-latest}
+    container_name: first_validator_health
+    hostname: first_validator_health
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/validator_health/Dockerfile
+    environment:
+      - VALIDATOR_URLS=http://validator-node0:8081,http://validator-node1:8081,http://validator-node2:8081
+      - MESSAGE_POOL_URL=http://message-pool:8082
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
         condition: service_healthy

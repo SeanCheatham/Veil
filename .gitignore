@@ -2,6 +2,8 @@
 /message-pool
 /pool_health
 /hello
+/validator-node
+/validator_health
 
 # Dependencies
 vendor/
