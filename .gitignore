@@ -3,6 +3,7 @@ bin/
 /message-pool
 /consensus-node
 /validator-node
+/relay-node
 
 # Go
 *.exe
