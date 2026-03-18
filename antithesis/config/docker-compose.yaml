@@ -33,7 +33,7 @@ services:
       message-pool:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -52,7 +52,7 @@ services:
       message-pool:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -71,7 +71,7 @@ services:
       message-pool:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]
       interval: 5s
       timeout: 3s
       retries: 3
