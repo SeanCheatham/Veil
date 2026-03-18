@@ -6,14 +6,5 @@ set -e
 
 echo "parallel_driver_send: starting sender workload..."
 
-# TODO: Implement sender workload
-# - Generate random messages with onion encryption
-# - Submit to relay network
-# - Track sent message IDs for delivery verification
-# - Inject cover traffic
-
-# For now, sleep briefly and exit
-sleep 5
-
-echo "parallel_driver_send: sender iteration complete"
-exit 0
+# Run the workload binary in sender mode
+exec /app/workload --mode=sender

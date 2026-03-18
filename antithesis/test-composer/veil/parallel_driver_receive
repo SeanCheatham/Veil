@@ -6,14 +6,5 @@ set -e
 
 echo "parallel_driver_receive: starting receiver workload..."
 
-# TODO: Implement receiver workload
-# - Poll message pool for new ciphertexts
-# - Attempt decryption on each blob
-# - Assert delivered messages match expected
-# - Report delivery latency metrics
-
-# For now, sleep briefly and exit
-sleep 5
-
-echo "parallel_driver_receive: receiver iteration complete"
-exit 0
+# Run the workload binary in receiver mode
+exec /app/workload --mode=receiver
