@@ -5,6 +5,9 @@
 *.so
 *.dylib
 /veil-*
+/pool
+/relay
+/validator
 /bin/
 
 # Test binary
