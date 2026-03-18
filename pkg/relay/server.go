@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -24,16 +26,25 @@ const DefaultPort = 7000
 
 // Server provides an HTTP API for the relay node.
 type Server struct {
-	relay  *Relay
-	mux    *http.ServeMux
-	server *http.Server
+	relay         *Relay
+	mux           *http.ServeMux
+	server        *http.Server
+	byzantineMode bool // When true, relay exhibits byzantine behaviors
 }
 
 // NewServer creates a new HTTP server for the relay.
 func NewServer(relay *Relay, addr string) *Server {
+	// Check for byzantine mode from environment
+	byzantineMode := os.Getenv("VEIL_BYZANTINE") == "true"
+
 	s := &Server{
-		relay: relay,
-		mux:   http.NewServeMux(),
+		relay:         relay,
+		mux:           http.NewServeMux(),
+		byzantineMode: byzantineMode,
+	}
+
+	if byzantineMode {
+		log.Printf("relay %s: WARNING - running in BYZANTINE mode", relay.ID)
 	}
 
 	// External API
@@ -43,6 +54,9 @@ func NewServer(relay *Relay, addr string) *Server {
 
 	// Internal API for key exchange
 	s.mux.HandleFunc("GET /pubkey", s.handleGetPubKey)
+
+	// Control API for testing
+	s.mux.HandleFunc("POST /epoch/advance", s.handleEpochAdvance)
 
 	s.server = &http.Server{
 		Addr:    addr,
@@ -106,6 +120,19 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 	if req.ID == "" || req.Nonce == "" || req.SenderPubKey == "" || req.Ciphertext == "" {
 		http.Error(w, "missing required fields", http.StatusBadRequest)
 		return
+	}
+
+	// Byzantine behavior: apply malicious actions when in byzantine mode
+	if s.byzantineMode {
+		behavior := s.applyByzantineBehavior(&req, w)
+		if behavior == "drop" {
+			// Message dropped silently - return success but don't process
+			resp := ForwardResponse{Accepted: true}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+		// For "delay" and "corrupt", continue processing with modified data
 	}
 
 	// Decode fields
@@ -213,6 +240,120 @@ func (s *Server) handleGetPubKey(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// EpochAdvanceResponse is the response body for POST /epoch/advance.
+type EpochAdvanceResponse struct {
+	PreviousEpoch uint64 `json:"previous_epoch"`
+	CurrentEpoch  uint64 `json:"current_epoch"`
+	RelayID       string `json:"relay_id"`
+}
+
+// handleEpochAdvance handles POST /epoch/advance - forces an epoch rotation.
+// This is a control endpoint for testing epoch boundary behavior.
+func (s *Server) handleEpochAdvance(w http.ResponseWriter, r *http.Request) {
+	previousEpoch := s.relay.Clock.CurrentEpoch()
+
+	// Force epoch advance
+	newEpoch := s.relay.Clock.ForceAdvance()
+
+	log.Printf("relay %s: epoch advanced %d -> %d (forced)", s.relay.ID, previousEpoch, newEpoch)
+
+	resp := EpochAdvanceResponse{
+		PreviousEpoch: previousEpoch,
+		CurrentEpoch:  newEpoch,
+		RelayID:       s.relay.ID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// applyByzantineBehavior applies random byzantine behaviors to a message.
+// Returns the behavior type applied: "drop", "delay", "corrupt", or "normal".
+func (s *Server) applyByzantineBehavior(req *ForwardRequest, w http.ResponseWriter) string {
+	// Randomly select byzantine behavior
+	behavior := rand.Intn(4)
+
+	switch behavior {
+	case 0:
+		// Drop message silently
+		log.Printf("relay %s: BYZANTINE - dropping message %s", s.relay.ID, req.ID)
+
+		// Antithesis assertion: byzantine_input
+		// Assert that byzantine relay sometimes delivers malicious input (drop)
+		assert.Sometimes(
+			true,
+			antithesis.ByzantineInput,
+			map[string]any{
+				"behavior": "drop",
+				"relay_id": s.relay.ID,
+				"msg_id":   req.ID,
+			},
+		)
+		return "drop"
+
+	case 1:
+		// Delay message significantly (1-5 seconds)
+		delay := time.Duration(1000+rand.Intn(4000)) * time.Millisecond
+		log.Printf("relay %s: BYZANTINE - delaying message %s by %v", s.relay.ID, req.ID, delay)
+
+		// Antithesis assertion: byzantine_input
+		// Assert that byzantine relay sometimes delivers malicious input (delay)
+		assert.Sometimes(
+			true,
+			antithesis.ByzantineInput,
+			map[string]any{
+				"behavior": "delay",
+				"relay_id": s.relay.ID,
+				"msg_id":   req.ID,
+				"delay_ms": delay.Milliseconds(),
+			},
+		)
+
+		time.Sleep(delay)
+		return "delay"
+
+	case 2:
+		// Corrupt message (flip random bits in ciphertext)
+		if len(req.Ciphertext) > 0 {
+			// Decode, corrupt, re-encode
+			ciphertext, err := base64.StdEncoding.DecodeString(req.Ciphertext)
+			if err == nil && len(ciphertext) > 0 {
+				// Flip 1-3 random bits
+				numFlips := 1 + rand.Intn(3)
+				for i := 0; i < numFlips; i++ {
+					pos := rand.Intn(len(ciphertext))
+					bit := uint8(1 << uint(rand.Intn(8)))
+					ciphertext[pos] ^= bit
+				}
+				req.Ciphertext = base64.StdEncoding.EncodeToString(ciphertext)
+
+				log.Printf("relay %s: BYZANTINE - corrupted message %s (%d bits flipped)",
+					s.relay.ID, req.ID, numFlips)
+
+				// Antithesis assertion: byzantine_input
+				// Assert that byzantine relay sometimes delivers malicious input (corrupt)
+				assert.Sometimes(
+					true,
+					antithesis.ByzantineInput,
+					map[string]any{
+						"behavior":  "corrupt",
+						"relay_id":  s.relay.ID,
+						"msg_id":    req.ID,
+						"bits_flipped": numFlips,
+					},
+				)
+				return "corrupt"
+			}
+		}
+		return "normal"
+
+	default:
+		// Normal behavior (control case)
+		log.Printf("relay %s: BYZANTINE - normal behavior for message %s", s.relay.ID, req.ID)
+		return "normal"
+	}
 }
 
 // Relay is the main relay node that coordinates onion peeling, mixing, and forwarding.

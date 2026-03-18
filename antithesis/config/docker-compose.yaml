@@ -179,6 +179,28 @@ services:
     volumes:
       - shared-data:/shared
 
+  # Byzantine Relay - exhibits malicious behaviors (drop/delay/corrupt)
+  relay-byzantine:
+    image: veil-relay:latest
+    hostname: relay-byzantine
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ID: "6"
+      VEIL_RELAY_PEERS: "relay-1:7000,relay-2:7000,relay-3:7000"
+      VEIL_VALIDATOR_ADDR: "validator-1:9000"
+      VEIL_BYZANTINE: "true"
+    depends_on:
+      - validator-1
+      - validator-2
+      - validator-3
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
   # Workload container - runs test composer commands
   workload:
     image: veil-workload:latest
