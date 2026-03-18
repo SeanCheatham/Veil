@@ -8,6 +8,8 @@ RUN CGO_ENABLED=0 go build -o /parallel_driver_verify_messages ./antithesis/test
 RUN CGO_ENABLED=0 go build -o /finally_delivery_check ./antithesis/test/veil/finally_delivery_check.go
 RUN CGO_ENABLED=0 go build -o /anytime_no_spurious_messages ./antithesis/test/veil/anytime_no_spurious_messages.go
 RUN CGO_ENABLED=0 go build -o /anytime_cover_traffic ./antithesis/test/veil/anytime_cover_traffic.go
+RUN CGO_ENABLED=0 go build -o /finally_property_summary ./antithesis/test/veil/finally_property_summary.go
+RUN CGO_ENABLED=0 go build -o /eventually_recovery_check ./antithesis/test/veil/eventually_recovery_check.go
 
 FROM alpine:latest
 RUN apk add --no-cache wget
@@ -17,4 +19,6 @@ COPY --from=builder /parallel_driver_verify_messages /opt/antithesis/test/v1/vei
 COPY --from=builder /finally_delivery_check /opt/antithesis/test/v1/veil/
 COPY --from=builder /anytime_no_spurious_messages /opt/antithesis/test/v1/veil/
 COPY --from=builder /anytime_cover_traffic /opt/antithesis/test/v1/veil/
+COPY --from=builder /finally_property_summary /opt/antithesis/test/v1/veil/
+COPY --from=builder /eventually_recovery_check /opt/antithesis/test/v1/veil/
 CMD ["/receiver-workload"]

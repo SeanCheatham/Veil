@@ -7,9 +7,15 @@ bin/
 /receiver-workload
 /sender-workload
 /parallel_driver_verify_messages
+/parallel_driver_send_message
 /finally_delivery_check
+/finally_property_summary
+/eventually_recovery_check
+/first_setup_check
 /anytime_no_spurious_messages
 /anytime_cover_traffic
+/anytime_consensus_ordering
+/anytime_epoch_transitions
 
 # Go
 *.exe

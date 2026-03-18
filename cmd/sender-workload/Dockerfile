@@ -6,6 +6,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /sender-workload ./cmd/sender-workload
 RUN CGO_ENABLED=0 go build -o /parallel_driver_send_message ./antithesis/test/veil/parallel_driver_send_message.go
 RUN CGO_ENABLED=0 go build -o /first_setup_check ./antithesis/test/veil/first_setup_check.go
+RUN CGO_ENABLED=0 go build -o /anytime_consensus_ordering ./antithesis/test/veil/anytime_consensus_ordering.go
+RUN CGO_ENABLED=0 go build -o /anytime_epoch_transitions ./antithesis/test/veil/anytime_epoch_transitions.go
 
 FROM alpine:latest
 RUN apk add --no-cache wget
@@ -13,4 +15,6 @@ COPY --from=builder /sender-workload /sender-workload
 RUN mkdir -p /opt/antithesis/test/v1/veil
 COPY --from=builder /parallel_driver_send_message /opt/antithesis/test/v1/veil/
 COPY --from=builder /first_setup_check /opt/antithesis/test/v1/veil/
+COPY --from=builder /anytime_consensus_ordering /opt/antithesis/test/v1/veil/
+COPY --from=builder /anytime_epoch_transitions /opt/antithesis/test/v1/veil/
 CMD ["/sender-workload"]
