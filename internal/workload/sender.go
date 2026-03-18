@@ -3,6 +3,7 @@ package workload
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -45,12 +46,16 @@ func (s *Sender) GenerateTestMessage(id int) []byte {
 }
 
 // SendMessage POSTs a message payload to the relay-node's /forward endpoint.
+// The payload is base64-encoded before sending to ensure it can traverse the relay network.
 func (s *Sender) SendMessage(payload []byte) error {
 	msgID := s.messageID.Add(1)
 
+	// Base64 encode the payload for transmission through the relay network
+	encodedPayload := base64.StdEncoding.EncodeToString(payload)
+
 	// Build the request body
 	reqBody := map[string]string{
-		"payload": string(payload),
+		"payload": encodedPayload,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
