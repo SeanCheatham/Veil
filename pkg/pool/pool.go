@@ -30,22 +30,50 @@ type Message struct {
 
 	// Timestamp is when the message was added to the pool.
 	Timestamp time.Time `json:"timestamp"`
+
+	// Epoch is the epoch number when this message was added.
+	Epoch uint64 `json:"epoch"`
+}
+
+// EpochProvider is an interface for getting the current epoch.
+// This allows the pool to be used with or without an epoch clock.
+type EpochProvider interface {
+	CurrentEpoch() uint64
 }
 
 // Pool is an append-only store for encrypted messages.
 // It provides hash-based integrity verification on every retrieval.
 type Pool struct {
-	mu       sync.RWMutex
-	messages map[string]*Message
-	order    []string // maintains insertion order for listing
+	mu            sync.RWMutex
+	messages      map[string]*Message
+	order         []string // maintains insertion order for listing
+	epochProvider EpochProvider
 }
 
 // New creates a new empty message pool.
 func New() *Pool {
 	return &Pool{
-		messages: make(map[string]*Message),
-		order:    make([]string, 0),
+		messages:      make(map[string]*Message),
+		order:         make([]string, 0),
+		epochProvider: nil,
 	}
+}
+
+// NewWithEpoch creates a new empty message pool with epoch tracking.
+func NewWithEpoch(provider EpochProvider) *Pool {
+	return &Pool{
+		messages:      make(map[string]*Message),
+		order:         make([]string, 0),
+		epochProvider: provider,
+	}
+}
+
+// SetEpochProvider sets the epoch provider for the pool.
+// This allows adding epoch tracking to an existing pool.
+func (p *Pool) SetEpochProvider(provider EpochProvider) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.epochProvider = provider
 }
 
 // computeHash computes the SHA-256 hash of the given data and returns it as a hex string.
@@ -72,11 +100,18 @@ func (p *Pool) Add(ciphertext []byte) (string, error) {
 		return hash, nil
 	}
 
+	// Get current epoch if provider is configured
+	var epoch uint64
+	if p.epochProvider != nil {
+		epoch = p.epochProvider.CurrentEpoch()
+	}
+
 	msg := &Message{
 		ID:         hash,
 		Ciphertext: make([]byte, len(ciphertext)),
 		StoredHash: hash,
 		Timestamp:  time.Now().UTC(),
+		Epoch:      epoch,
 	}
 	copy(msg.Ciphertext, ciphertext)
 
@@ -109,6 +144,7 @@ func (p *Pool) Get(id string) (*Message, bool, error) {
 		Ciphertext: make([]byte, len(msg.Ciphertext)),
 		StoredHash: msg.StoredHash,
 		Timestamp:  msg.Timestamp,
+		Epoch:      msg.Epoch,
 	}
 	copy(msgCopy.Ciphertext, msg.Ciphertext)
 
@@ -130,4 +166,29 @@ func (p *Pool) Count() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return len(p.messages)
+}
+
+// ListByEpoch returns all message IDs for a specific epoch in insertion order.
+func (p *Pool) ListByEpoch(epoch uint64) []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	result := make([]string, 0)
+	for _, id := range p.order {
+		if msg, exists := p.messages[id]; exists && msg.Epoch == epoch {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+// CurrentEpoch returns the current epoch from the provider, or 0 if not configured.
+func (p *Pool) CurrentEpoch() uint64 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.epochProvider != nil {
+		return p.epochProvider.CurrentEpoch()
+	}
+	return 0
 }

@@ -108,6 +108,7 @@ type GetMessageResponse struct {
 	ID         string `json:"id"`
 	Ciphertext string `json:"ciphertext"` // base64 encoded
 	Timestamp  string `json:"timestamp"`
+	Epoch      uint64 `json:"epoch"`
 }
 
 // handleGetMessage handles GET /messages/{id} - retrieves a message by ID.
@@ -160,6 +161,7 @@ func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 		ID:         msg.ID,
 		Ciphertext: base64.StdEncoding.EncodeToString(msg.Ciphertext),
 		Timestamp:  msg.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		Epoch:      msg.Epoch,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
