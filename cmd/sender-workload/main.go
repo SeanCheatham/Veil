@@ -14,6 +14,9 @@ import (
 	"github.com/veil/veil/internal/workload"
 )
 
+// Default cover traffic rate (messages per second)
+const defaultCoverTrafficRate = 0.5
+
 func main() {
 	log.Println("sender-workload starting...")
 
@@ -64,13 +67,26 @@ func main() {
 		log.Println("Sender using static relay keys (epoch mode disabled)")
 	}
 
-	log.Printf("Sender initialized with relayURL=%s, sendInterval=%dms", relayURL, sendIntervalMS)
+	// Get cover traffic rate from environment
+	coverRate := defaultCoverTrafficRate
+	if coverRateStr := os.Getenv("COVER_TRAFFIC_RATE"); coverRateStr != "" {
+		var err error
+		coverRate, err = strconv.ParseFloat(coverRateStr, 64)
+		if err != nil {
+			log.Printf("Invalid COVER_TRAFFIC_RATE %q, using default %.2f", coverRateStr, defaultCoverTrafficRate)
+			coverRate = defaultCoverTrafficRate
+		}
+	}
+
+	log.Printf("Sender initialized with relayURL=%s, sendInterval=%dms, coverRate=%.2f msg/sec",
+		relayURL, sendIntervalMS, coverRate)
 
 	// Signal to Antithesis that setup is complete
 	setupInfo := map[string]any{
-		"service":          "sender-workload",
-		"relay_url":        relayURL,
-		"send_interval_ms": sendIntervalMS,
+		"service":            "sender-workload",
+		"relay_url":          relayURL,
+		"send_interval_ms":   sendIntervalMS,
+		"cover_traffic_rate": coverRate,
 	}
 	if currentEpoch, ok := sender.GetCurrentEpoch(); ok {
 		setupInfo["current_epoch"] = currentEpoch
@@ -78,6 +94,24 @@ func main() {
 	lifecycle.SetupComplete(setupInfo)
 
 	log.Println("sender-workload ready, starting message loop")
+
+	// Start cover traffic generator in background
+	if coverRate > 0 {
+		go func() {
+			interval := time.Duration(float64(time.Second) / coverRate)
+			log.Printf("Cover traffic generator started with interval %v", interval)
+			for {
+				if err := sender.SendCoverMessage(); err != nil {
+					log.Printf("Failed to send cover message: %v", err)
+				} else {
+					log.Printf("Sent cover message (total: %d)", sender.GetCoverMessageCount())
+				}
+				time.Sleep(interval)
+			}
+		}()
+	} else {
+		log.Println("Cover traffic disabled (rate=0)")
+	}
 
 	// Run continuous loop sending messages
 	messageID := 0

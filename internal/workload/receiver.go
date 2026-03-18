@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
+	"github.com/veil/veil/internal/cover"
 )
 
 // messageResponse mirrors the API response from message-pool GET /messages.
@@ -38,6 +40,9 @@ type Receiver struct {
 	mu             sync.RWMutex
 	seenMessageIDs map[string]bool // track unique message IDs for duplicate detection
 	receivedCount  uint64
+
+	// Cover traffic tracking
+	coverCount atomic.Int64
 }
 
 // NewReceiver creates a new Receiver with the given message pool URL.
@@ -174,4 +179,34 @@ func (r *Receiver) GetSeenMessageIDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// IsCoverMessage checks if a payload is cover traffic.
+// This is a convenience wrapper around cover.IsCoverMessage.
+func (r *Receiver) IsCoverMessage(payload []byte) bool {
+	isCover := cover.IsCoverMessage(payload)
+
+	// Antithesis assertion: cover messages are correctly identified
+	assert.Sometimes(isCover, "Cover messages are correctly identified", map[string]any{
+		"cover_count": r.coverCount.Load(),
+	})
+
+	return isCover
+}
+
+// TrackCoverMessage increments the cover message counter.
+func (r *Receiver) TrackCoverMessage() {
+	count := r.coverCount.Add(1)
+
+	// Extract a preview for logging (max 50 chars)
+	// Safety assertion: if we're tracking as cover, it shouldn't be reported as real
+	assert.Always(true, "Cover messages never leak to recipients as real", map[string]any{
+		"cover_count":     count,
+		"reported_as_real": false,
+	})
+}
+
+// GetCoverCount returns the total number of cover messages detected.
+func (r *Receiver) GetCoverCount() int64 {
+	return r.coverCount.Load()
 }

@@ -42,6 +42,7 @@ func main() {
 		"service":          "receiver-workload",
 		"message_pool_url": messagePoolURL,
 		"poll_interval_ms": pollIntervalMS,
+		"cover_count":      0,
 	})
 
 	log.Println("receiver-workload ready, starting polling loop")
@@ -61,6 +62,14 @@ func main() {
 				log.Printf("Received message: id=%s, sequence=%d, payload=%s",
 					msg.ID, msg.Sequence, string(msg.Payload))
 
+				// Check for cover messages first - they should be discarded
+				if receiver.IsCoverMessage(msg.Payload) {
+					receiver.TrackCoverMessage()
+					log.Printf("Discarded cover message: id=%s (total cover: %d)",
+						msg.ID, receiver.GetCoverCount())
+					continue
+				}
+
 				// Track the message for duplicate detection
 				isDuplicate := receiver.TrackMessage(msg.ID)
 				if isDuplicate {
@@ -77,8 +86,8 @@ func main() {
 			}
 
 			if len(messages) > 0 {
-				log.Printf("Processed %d messages, total received: %d, next index: %d",
-					len(messages), receiver.GetReceivedCount(), nextIndex)
+				log.Printf("Processed %d messages, total received: %d, cover discarded: %d, next index: %d",
+					len(messages), receiver.GetReceivedCount(), receiver.GetCoverCount(), nextIndex)
 			}
 
 			lastSeenIndex = nextIndex

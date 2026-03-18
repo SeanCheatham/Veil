@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
+	"github.com/veil/veil/internal/cover"
 	"github.com/veil/veil/internal/workload"
 )
 
@@ -37,9 +38,16 @@ func main() {
 	spuriousCount := 0
 	var spuriousPayloads []string
 
+	coverCount := 0
 	for _, msg := range messages {
+		// Cover messages are valid, not spurious
+		if cover.IsCoverMessage(msg.Payload) {
+			coverCount++
+			continue
+		}
+
 		// A message is spurious if it doesn't match our expected format
-		// (i.e., it wasn't sent by our sender-workload)
+		// (i.e., it wasn't sent by our sender-workload and is not cover traffic)
 		if !receiver.VerifyMessage(msg.Payload) {
 			spuriousCount++
 			preview := string(msg.Payload)
@@ -54,6 +62,7 @@ func main() {
 	noSpurious := spuriousCount == 0
 	assert.Always(noSpurious, "No spurious messages appear in pool", map[string]any{
 		"spurious_count": spuriousCount,
+		"cover_count":    coverCount,
 		"total_messages": len(messages),
 	})
 
@@ -85,8 +94,8 @@ func main() {
 		"message_count":  len(messages),
 	})
 
-	log.Printf("anytime_no_spurious_messages: completed. Total=%d, Spurious=%d, OrderingValid=%t",
-		len(messages), spuriousCount, orderingValid)
+	log.Printf("anytime_no_spurious_messages: completed. Total=%d, Cover=%d, Spurious=%d, OrderingValid=%t",
+		len(messages), coverCount, spuriousCount, orderingValid)
 
 	os.Exit(0)
 }

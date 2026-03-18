@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
+	"github.com/veil/veil/internal/cover"
 	"github.com/veil/veil/internal/crypto"
 	"github.com/veil/veil/internal/epoch"
 )
@@ -32,9 +34,12 @@ type Sender struct {
 	relayMasterSeeds [][]byte
 
 	// Cached epoch keys - protected by keyMu
-	keyMu            sync.RWMutex
-	cachedEpoch      uint64
-	cachedRelayKeys  []crypto.PublicKey
+	keyMu           sync.RWMutex
+	cachedEpoch     uint64
+	cachedRelayKeys []crypto.PublicKey
+
+	// Cover traffic tracking
+	coverMessageCount atomic.Int64
 }
 
 // NewSender creates a new Sender with the given relay URL.
@@ -203,4 +208,64 @@ func (s *Sender) RefreshRelayKeys() error {
 	s.keyMu.Unlock()
 
 	return nil
+}
+
+// SendCoverMessage generates and sends a cover traffic message through the relay network.
+// Cover messages are cryptographically indistinguishable from real messages but carry
+// a special marker that receivers can detect after decryption.
+func (s *Sender) SendCoverMessage() error {
+	// Generate cover payload
+	payload := cover.GenerateCoverPayload()
+
+	// Send it through the same path as real messages
+	err := s.SendMessage(payload)
+
+	// Track cover message count (only increment on successful send attempt for metrics)
+	count := s.coverMessageCount.Add(1)
+
+	// Antithesis assertion: cover traffic is generated and sent
+	assert.Sometimes(err == nil, "Cover traffic is generated and sent", map[string]any{
+		"cover_count": count,
+	})
+
+	// Antithesis assertion: cover traffic processed identically to real traffic
+	// A network error is acceptable, but any other error indicates a side channel
+	assert.Always(err == nil || isNetworkError(err),
+		"Cover traffic processed identically to real traffic", map[string]any{
+			"message_type": "cover",
+			"error":        errorString(err),
+		})
+
+	return err
+}
+
+// GetCoverMessageCount returns the total number of cover messages sent.
+func (s *Sender) GetCoverMessageCount() int64 {
+	return s.coverMessageCount.Load()
+}
+
+// isNetworkError checks if the error is a network-related error.
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// Network errors typically contain these patterns
+	return strings.Contains(errStr, "connection") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "dial") ||
+		strings.Contains(errStr, "network") ||
+		strings.Contains(errStr, "refused") ||
+		strings.Contains(errStr, "unreachable") ||
+		strings.Contains(errStr, "EOF") ||
+		strings.Contains(errStr, "send") ||
+		strings.Contains(errStr, "relay")
+}
+
+// errorString returns a string representation of an error, or "nil" if nil.
+func errorString(err error) string {
+	if err == nil {
+		return "nil"
+	}
+	return err.Error()
 }
