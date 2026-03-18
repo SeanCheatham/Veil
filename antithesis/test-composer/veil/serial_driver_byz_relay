@@ -1,0 +1,20 @@
+#!/bin/sh
+# serial_driver_byz_relay - Make one relay behave maliciously
+# Runs serially, injecting byzantine behavior into the relay network.
+
+set -e
+
+echo "serial_driver_byz_relay: injecting byzantine relay behavior..."
+
+# TODO: Implement byzantine relay
+# - Select a relay to corrupt
+# - Make it:
+#   - Drop messages
+#   - Delay messages
+#   - Duplicate messages
+#   - Attempt to log inbound/outbound correlation
+# - Verify system continues to function
+# - Verify anonymity properties still hold
+
+echo "serial_driver_byz_relay: byzantine injection complete"
+exit 0

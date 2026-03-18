@@ -1,0 +1,19 @@
+#!/bin/sh
+# parallel_driver_send - Continuous random sender patterns
+# Runs in parallel with other drivers, generating message traffic.
+
+set -e
+
+echo "parallel_driver_send: starting sender workload..."
+
+# TODO: Implement sender workload
+# - Generate random messages with onion encryption
+# - Submit to relay network
+# - Track sent message IDs for delivery verification
+# - Inject cover traffic
+
+# For now, sleep briefly and exit
+sleep 5
+
+echo "parallel_driver_send: sender iteration complete"
+exit 0

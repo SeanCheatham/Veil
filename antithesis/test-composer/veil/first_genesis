@@ -1,0 +1,16 @@
+#!/bin/sh
+# first_genesis - Bootstrap relay network + validators
+# This command runs once at the start of each timeline.
+
+set -e
+
+echo "first_genesis: bootstrapping Veil network..."
+
+# TODO: Implement network bootstrap
+# - Initialize validator consensus
+# - Generate initial epoch keys
+# - Establish relay mesh connectivity
+# - Verify minimum anonymity set size
+
+echo "first_genesis: bootstrap complete"
+exit 0

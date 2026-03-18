@@ -1,0 +1,52 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/veil-*
+/bin/
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+*.env
+
+# Build artifacts
+/dist/
+/build/
+
+# Docker
+*.tar
+
+# Antithesis local output
+/tmp/antithesis/
+antithesis_sdk.jsonl
+
+# Negation to override global gitignore
+!antithesis/config/

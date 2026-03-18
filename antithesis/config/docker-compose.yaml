@@ -1,0 +1,205 @@
+# Veil Antithesis Test Harness
+# This compose file defines the Veil mix network for testing in Antithesis.
+
+x-common-env: &common-env
+  ANTITHESIS_OUTPUT_DIR: /tmp/antithesis
+
+services:
+  # Message Pool - append-only ciphertext store
+  message-pool:
+    image: veil-pool:latest
+    hostname: message-pool
+    environment:
+      <<: *common-env
+      VEIL_POOL_PORT: "8080"
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  # Validator Nodes - BFT consensus, message pool ordering (3 nodes for 2f+1)
+  validator-1:
+    image: veil-validator:latest
+    hostname: validator-1
+    environment:
+      <<: *common-env
+      VEIL_VALIDATOR_ID: "1"
+      VEIL_VALIDATOR_PEERS: "validator-2:9000,validator-3:9000"
+      VEIL_POOL_ADDR: "message-pool:8080"
+    depends_on:
+      message-pool:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  validator-2:
+    image: veil-validator:latest
+    hostname: validator-2
+    environment:
+      <<: *common-env
+      VEIL_VALIDATOR_ID: "2"
+      VEIL_VALIDATOR_PEERS: "validator-1:9000,validator-3:9000"
+      VEIL_POOL_ADDR: "message-pool:8080"
+    depends_on:
+      message-pool:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  validator-3:
+    image: veil-validator:latest
+    hostname: validator-3
+    environment:
+      <<: *common-env
+      VEIL_VALIDATOR_ID: "3"
+      VEIL_VALIDATOR_PEERS: "validator-1:9000,validator-2:9000"
+      VEIL_POOL_ADDR: "message-pool:8080"
+    depends_on:
+      message-pool:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  # Relay Nodes - onion layer peeling, mix-and-forward (5 nodes for anonymity set)
+  relay-1:
+    image: veil-relay:latest
+    hostname: relay-1
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ID: "1"
+      VEIL_RELAY_PEERS: "relay-2:7000,relay-3:7000,relay-4:7000,relay-5:7000"
+      VEIL_VALIDATOR_ADDR: "validator-1:9000"
+    depends_on:
+      - validator-1
+      - validator-2
+      - validator-3
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  relay-2:
+    image: veil-relay:latest
+    hostname: relay-2
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ID: "2"
+      VEIL_RELAY_PEERS: "relay-1:7000,relay-3:7000,relay-4:7000,relay-5:7000"
+      VEIL_VALIDATOR_ADDR: "validator-2:9000"
+    depends_on:
+      - validator-1
+      - validator-2
+      - validator-3
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  relay-3:
+    image: veil-relay:latest
+    hostname: relay-3
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ID: "3"
+      VEIL_RELAY_PEERS: "relay-1:7000,relay-2:7000,relay-4:7000,relay-5:7000"
+      VEIL_VALIDATOR_ADDR: "validator-3:9000"
+    depends_on:
+      - validator-1
+      - validator-2
+      - validator-3
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  relay-4:
+    image: veil-relay:latest
+    hostname: relay-4
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ID: "4"
+      VEIL_RELAY_PEERS: "relay-1:7000,relay-2:7000,relay-3:7000,relay-5:7000"
+      VEIL_VALIDATOR_ADDR: "validator-1:9000"
+    depends_on:
+      - validator-1
+      - validator-2
+      - validator-3
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  relay-5:
+    image: veil-relay:latest
+    hostname: relay-5
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ID: "5"
+      VEIL_RELAY_PEERS: "relay-1:7000,relay-2:7000,relay-3:7000,relay-4:7000"
+      VEIL_VALIDATOR_ADDR: "validator-2:9000"
+    depends_on:
+      - validator-1
+      - validator-2
+      - validator-3
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+  # Workload container - runs test composer commands
+  workload:
+    image: veil-workload:latest
+    hostname: workload
+    environment:
+      <<: *common-env
+      VEIL_RELAY_ADDRS: "relay-1:7000,relay-2:7000,relay-3:7000,relay-4:7000,relay-5:7000"
+      VEIL_POOL_ADDR: "message-pool:8080"
+    depends_on:
+      - relay-1
+      - relay-2
+      - relay-3
+      - relay-4
+      - relay-5
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - shared-data:/shared
+
+volumes:
+  shared-data:

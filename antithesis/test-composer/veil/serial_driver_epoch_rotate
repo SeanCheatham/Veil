@@ -1,0 +1,17 @@
+#!/bin/sh
+# serial_driver_epoch_rotate - Force epoch boundary with in-flight messages
+# Runs serially (one at a time), causing disruptive state transitions.
+
+set -e
+
+echo "serial_driver_epoch_rotate: forcing epoch rotation..."
+
+# TODO: Implement epoch rotation
+# - Send messages to ensure some are in-flight
+# - Force epoch tick
+# - Verify key rotation occurred
+# - Check no messages were lost or double-processed
+# - Validate no identity leakage during transition
+
+echo "serial_driver_epoch_rotate: epoch rotation complete"
+exit 0

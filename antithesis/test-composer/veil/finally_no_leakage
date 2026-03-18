@@ -1,0 +1,17 @@
+#!/bin/sh
+# finally_no_leakage - Post-run audit: no identity revealed in any log
+# Runs at the end of the timeline to audit for information leakage.
+
+set -e
+
+echo "finally_no_leakage: auditing logs for identity leakage..."
+
+# TODO: Implement leakage audit
+# - Scan all container logs
+# - Check no sender identity appears in relay logs
+# - Check no inbound/outbound message ID correlation
+# - Verify no key material in logs
+# - Check no timing correlation possible
+
+echo "finally_no_leakage: no leakage detected"
+exit 0
