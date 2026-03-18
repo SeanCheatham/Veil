@@ -1,0 +1,14 @@
+[
+  {
+    "repo": "antithesishq/antithesis-skills",
+    "ref": "c50c42a",
+    "installed_at": "2026-03-18T15:09:14Z",
+    "skills": [
+      "antithesis-documentation",
+      "antithesis-research",
+      "antithesis-setup",
+      "antithesis-triage",
+      "antithesis-workload"
+    ]
+  }
+]
