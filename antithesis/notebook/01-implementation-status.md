@@ -21,8 +21,8 @@ Veil is a decentralized anonymous messaging protocol — a mix network with cons
 | 8 | Integration & Wiring | COMPLETED |
 | 9a | Build Verification | COMPLETED |
 | 9b | Docker Build & Compose | COMPLETED |
-| 9c | Notebook Documentation | IN PROGRESS |
-| 9d | Antithesis Cloud Submission | PENDING |
+| 9c | Notebook Documentation | COMPLETED |
+| 9d | Antithesis Cloud Submission | BLOCKED (user credentials required) |
 
 ---
 
@@ -83,6 +83,10 @@ Veil is a decentralized anonymous messaging protocol — a mix network with cons
 ### Phase 9b: Docker Build & Compose
 - All Docker images built successfully
 - docker-compose.yaml verified
+
+### Phase 9c: Notebook Documentation
+- Updated implementation status
+- Added Phase 9d instructions for user
 
 ---
 
@@ -152,6 +156,56 @@ All prerequisites for Antithesis cloud submission are met:
 2. **Consensus partition cascade** — 2/3 quorum violations during partition
 3. **Anonymity set collapse** — relay count drops below k=3
 4. **Key scope violation on recovery** — stale key usage after crash
+
+---
+
+## Phase 9d: Antithesis Cloud Submission
+
+### Status: BLOCKED — User Action Required
+
+Phase 9d requires Antithesis cloud credentials that must be provided by the user.
+
+### Prerequisites Verified
+
+- [x] `snouty` CLI is installed (`/home/sean/.cargo/bin/snouty`)
+- [x] `go build ./...` passes
+- [ ] `ANTITHESIS_REPOSITORY` environment variable set
+- [ ] Docker authenticated to Antithesis registry
+
+### User Steps to Complete Phase 9d
+
+**Step 1: Set ANTITHESIS_REPOSITORY environment variable**
+
+```bash
+export ANTITHESIS_REPOSITORY="us-central1-docker.pkg.dev/<your-project>/<your-repo>"
+```
+
+Replace `<your-project>` and `<your-repo>` with your Antithesis registry path.
+
+**Step 2: Authenticate Docker to the registry**
+
+```bash
+# For Google Artifact Registry:
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+# Or direct login:
+docker login us-central1-docker.pkg.dev
+```
+
+**Step 3: Run the submission script**
+
+```bash
+./antithesis/submit.sh --duration 30 --desc 'First integration run'
+```
+
+This will:
+1. Build all 4 Docker images (veil-pool, veil-validator, veil-relay, veil-workload)
+2. Tag images for the Antithesis registry
+3. Submit to Antithesis cloud via `snouty run`
+
+**Step 4: After run completes**
+
+Use the `antithesis-triage` skill to analyze findings and document bugs in this notebook.
 
 ---
 
