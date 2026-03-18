@@ -1,0 +1,40 @@
+# Minimal skeleton configuration for Antithesis validation
+# This compose file contains only the hello service and first_setup workload
+# to validate the Antithesis integration before building real services.
+
+services:
+  # Hello service - minimal HTTP server with /health endpoint
+  hello:
+    image: ${REGISTRY:-veil}/hello:${TAG:-latest}
+    container_name: hello
+    hostname: hello
+    init: true
+    build:
+      context: ../..
+      dockerfile: cmd/hello/Dockerfile
+    expose:
+      - "8080"
+    environment:
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # first_setup workload - validates services_reachable property
+  # Naming convention: first_* runs once before fault injection
+  first_setup:
+    image: ${REGISTRY:-veil}/first_setup:${TAG:-latest}
+    container_name: first_setup
+    hostname: first_setup
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/first_setup/Dockerfile
+    environment:
+      - HELLO_URL=http://hello:8080
+    depends_on:
+      hello:
+        condition: service_healthy

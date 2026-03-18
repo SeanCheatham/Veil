@@ -1,0 +1,58 @@
+# Local development overrides - adds build directives
+# Docker Compose automatically merges this with docker-compose.yaml
+
+services:
+  message-pool:
+    build:
+      context: ../..
+      dockerfile: cmd/message-pool/Dockerfile
+
+  validator-node0:
+    build:
+      context: ../..
+      dockerfile: cmd/validator-node/Dockerfile
+
+  validator-node1:
+    build:
+      context: ../..
+      dockerfile: cmd/validator-node/Dockerfile
+
+  validator-node2:
+    build:
+      context: ../..
+      dockerfile: cmd/validator-node/Dockerfile
+
+  relay-node0:
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+
+  relay-node1:
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+
+  relay-node2:
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+
+  relay-node3:
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+
+  relay-node4:
+    build:
+      context: ../..
+      dockerfile: cmd/relay-node/Dockerfile
+
+  sender-workload:
+    build:
+      context: ../..
+      dockerfile: cmd/sender-workload/Dockerfile
+
+  receiver-workload:
+    build:
+      context: ../..
+      dockerfile: cmd/receiver-workload/Dockerfile

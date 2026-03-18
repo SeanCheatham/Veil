@@ -1,0 +1,43 @@
+# Dependencies
+vendor/
+
+# Build outputs
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files with secrets (keep .env template)
+.env.local
+.env.*.local
+*.env.secret
+
+# Go test and coverage
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Docker
+*.tar
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
