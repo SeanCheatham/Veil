@@ -51,6 +51,10 @@ var (
 	onionModeEnabled  bool
 	coverTrafficRate  float64 // 0.0-1.0, probability of generating cover traffic
 
+	// Recipient encryption (Plan 12)
+	recipientPubKey        [32]byte
+	recipientEncryptionEnabled bool
+
 	// Thread-safe tracking of sent messages
 	sentMessages   []SentMessage
 	sentMessagesMu sync.Mutex
@@ -134,13 +138,28 @@ func main() {
 		coverTrafficRate = 0.0
 	}
 
+	// Parse recipient public key for end-to-end encryption (Plan 12)
+	recipientPubKeyStr := os.Getenv("RECIPIENT_PUBLIC_KEY")
+	if recipientPubKeyStr != "" {
+		var err error
+		recipientPubKey, err = crypto.PublicKeyFromBase64(recipientPubKeyStr)
+		if err != nil {
+			log.Fatalf("Failed to parse RECIPIENT_PUBLIC_KEY: %v", err)
+		}
+		recipientEncryptionEnabled = true
+		log.Printf("Recipient encryption ENABLED (X25519 public key loaded)")
+	} else {
+		recipientEncryptionEnabled = false
+		log.Printf("Recipient encryption DISABLED (no RECIPIENT_PUBLIC_KEY)")
+	}
+
 	// Configure HTTP client with reasonable timeouts
 	httpClient = &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	log.Printf("Configuration: relay_url=%s, interval=%dms, sender_id=%s, onion_mode=%v, cover_rate=%.2f",
-		relayURL, messageIntervalMS, senderID, onionModeEnabled, coverTrafficRate)
+	log.Printf("Configuration: relay_url=%s, interval=%dms, sender_id=%s, onion_mode=%v, cover_rate=%.2f, recipient_enc=%v",
+		relayURL, messageIntervalMS, senderID, onionModeEnabled, coverTrafficRate, recipientEncryptionEnabled)
 
 	// Step 1: Wait for relay-node0 to be healthy
 	log.Printf("Waiting for relay at %s to be healthy...", relayURL)
@@ -151,12 +170,13 @@ func main() {
 
 	// Step 2: Signal setup complete once relay is ready
 	lifecycle.SetupComplete(map[string]any{
-		"workload":            "sender-workload",
-		"sender_id":           senderID,
-		"relay_url":           relayURL,
-		"message_interval_ms": messageIntervalMS,
-		"onion_mode":          onionModeEnabled,
-		"epoch_duration_s":    epochDuration,
+		"workload":             "sender-workload",
+		"sender_id":            senderID,
+		"relay_url":            relayURL,
+		"message_interval_ms":  messageIntervalMS,
+		"onion_mode":           onionModeEnabled,
+		"epoch_duration_s":     epochDuration,
+		"recipient_encryption": recipientEncryptionEnabled,
 	})
 
 	// Step 3: Enter continuous message generation loop
@@ -251,12 +271,54 @@ func sendMessage() {
 	var finalPayload string
 	var err error
 
+	// The payload to wrap in onion (may be recipient-encrypted)
+	onionPayload := payload
+
+	// Step 1: If recipient encryption is enabled, encrypt payload for recipient first
+	if recipientEncryptionEnabled {
+		encMsg, err := crypto.EncryptForRecipient([]byte(payload), recipientPubKey)
+		if err != nil {
+			log.Printf("[%s] Failed to encrypt for recipient: %v", senderID, err)
+			assert.Always(false, "payload_encrypted_for_recipient", map[string]any{
+				"sender_id":  senderID,
+				"message_id": messageID,
+				"error":      err.Error(),
+			})
+			return
+		}
+
+		// Serialize encrypted message to JSON for onion wrapping
+		onionPayload, err = crypto.SerializeEncryptedMessage(encMsg)
+		if err != nil {
+			log.Printf("[%s] Failed to serialize encrypted message: %v", senderID, err)
+			assert.Always(false, "payload_encrypted_for_recipient", map[string]any{
+				"sender_id":  senderID,
+				"message_id": messageID,
+				"error":      err.Error(),
+			})
+			return
+		}
+
+		// Antithesis assertion: recipient encryption succeeded
+		assert.Always(true, "payload_encrypted_for_recipient", map[string]any{
+			"sender_id":        senderID,
+			"message_id":       messageID,
+			"original_size":    len(payload),
+			"encrypted_size":   len(onionPayload),
+			"is_cover_traffic": isCoverTraffic,
+		})
+
+		log.Printf("[%s] Encrypted payload for recipient (original: %d bytes, encrypted: %d bytes)",
+			senderID, len(payload), len(onionPayload))
+	}
+
+	// Step 2: If onion mode is enabled, wrap the (possibly encrypted) payload in onion layers
 	if onionModeEnabled {
 		// Calculate current epoch
 		epoch := uint64(time.Now().Unix() / epochDuration)
 
 		// Wrap payload in 5-layer onion
-		finalPayload, err = crypto.WrapOnion(relaySeeds, epoch, messageID, payload)
+		finalPayload, err = crypto.WrapOnion(relaySeeds, epoch, messageID, onionPayload)
 		if err != nil {
 			log.Printf("[%s] Failed to construct onion: %v", senderID, err)
 			// Antithesis assertion: onion construction should always succeed
@@ -271,32 +333,34 @@ func sendMessage() {
 
 		// Antithesis assertion: onion construction succeeded
 		assert.Always(true, "sender_onion_constructed", map[string]any{
-			"sender_id":       senderID,
-			"message_id":      messageID,
-			"epoch":           epoch,
-			"onion_size":      len(finalPayload),
-			"payload_size":    len(payload),
-			"is_cover_traffic": isCoverTraffic,
+			"sender_id":            senderID,
+			"message_id":           messageID,
+			"epoch":                epoch,
+			"onion_size":           len(finalPayload),
+			"payload_size":         len(onionPayload),
+			"is_cover_traffic":     isCoverTraffic,
+			"recipient_encryption": recipientEncryptionEnabled,
 		})
 
 		// Antithesis assertion: cover traffic uses same encryption as real traffic
 		// This proves cover traffic is indistinguishable at the relay level
 		if isCoverTraffic {
 			assert.Always(true, "cover_traffic_encrypted", map[string]any{
-				"sender_id":    senderID,
-				"message_id":   messageID,
-				"epoch":        epoch,
-				"onion_size":   len(finalPayload),
-				"encryption":   "aes-gcm",
-				"layers":       5,
+				"sender_id":            senderID,
+				"message_id":           messageID,
+				"epoch":                epoch,
+				"onion_size":           len(finalPayload),
+				"encryption":           "aes-gcm",
+				"layers":               5,
+				"recipient_encryption": recipientEncryptionEnabled,
 			})
 		}
 
-		log.Printf("[%s] Constructed onion for message %s (epoch: %d, size: %d bytes, cover: %v)",
-			senderID, messageID, epoch, len(finalPayload), isCoverTraffic)
+		log.Printf("[%s] Constructed onion for message %s (epoch: %d, size: %d bytes, cover: %v, recipient_enc: %v)",
+			senderID, messageID, epoch, len(finalPayload), isCoverTraffic, recipientEncryptionEnabled)
 	} else {
-		// Stub mode: send plaintext payload
-		finalPayload = payload
+		// Stub mode: send the payload directly (may be recipient-encrypted or plain)
+		finalPayload = onionPayload
 	}
 
 	// Create relay request

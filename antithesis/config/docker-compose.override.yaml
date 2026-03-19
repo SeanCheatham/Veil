@@ -101,3 +101,8 @@ services:
     build:
       context: ../..
       dockerfile: antithesis/workloads/epoch_rotation_test/Dockerfile
+
+  first_recipient_decryption:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/recipient_decryption/Dockerfile

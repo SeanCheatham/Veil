@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+	"github.com/veil/veil/internal/crypto"
 )
 
 // Message represents a stored message in the pool (mirrors message-pool exactly)
@@ -34,14 +36,21 @@ var (
 	receiverID       string
 	httpClient       *http.Client
 
+	// Recipient decryption (Plan 12)
+	receiverPrivKey          [32]byte
+	receiverPubKey           [32]byte
+	recipientDecryptEnabled  bool
+
 	// Thread-safe tracking of seen messages
 	seenMessages   map[int]ReceivedMessage
 	seenMessagesMu sync.RWMutex
 
 	// Stats for assertions
-	totalFetches     uint64
-	successfulFetches uint64
-	newMessagesSeen  uint64
+	totalFetches          uint64
+	successfulFetches     uint64
+	newMessagesSeen       uint64
+	decryptionSuccesses   uint64
+	decryptionFailures    uint64
 )
 
 func main() {
@@ -69,6 +78,29 @@ func main() {
 		receiverID = "receiver-0"
 	}
 
+	// Parse receiver private key for decryption (Plan 12)
+	receiverPrivKeyStr := os.Getenv("RECEIVER_PRIVATE_KEY")
+	receiverPubKeyStr := os.Getenv("RECEIVER_PUBLIC_KEY")
+	if receiverPrivKeyStr != "" {
+		var err error
+		receiverPrivKey, err = crypto.PrivateKeyFromBase64(receiverPrivKeyStr)
+		if err != nil {
+			log.Fatalf("Failed to parse RECEIVER_PRIVATE_KEY: %v", err)
+		}
+		// If public key is provided, use it; otherwise derive from private key
+		if receiverPubKeyStr != "" {
+			receiverPubKey, err = crypto.PublicKeyFromBase64(receiverPubKeyStr)
+			if err != nil {
+				log.Fatalf("Failed to parse RECEIVER_PUBLIC_KEY: %v", err)
+			}
+		}
+		recipientDecryptEnabled = true
+		log.Printf("Recipient decryption ENABLED (X25519 key pair loaded)")
+	} else {
+		recipientDecryptEnabled = false
+		log.Printf("Recipient decryption DISABLED (no RECEIVER_PRIVATE_KEY, using stub mode)")
+	}
+
 	// Configure HTTP client with reasonable timeouts
 	httpClient = &http.Client{
 		Timeout: 10 * time.Second,
@@ -77,8 +109,8 @@ func main() {
 	// Initialize seen messages map
 	seenMessages = make(map[int]ReceivedMessage)
 
-	log.Printf("Configuration: pool_url=%s, interval=%dms, receiver_id=%s",
-		messagePoolURL, pollIntervalMS, receiverID)
+	log.Printf("Configuration: pool_url=%s, interval=%dms, receiver_id=%s, recipient_decrypt=%v",
+		messagePoolURL, pollIntervalMS, receiverID, recipientDecryptEnabled)
 
 	// Step 1: Wait for message-pool to be healthy
 	log.Printf("Waiting for message-pool at %s to be healthy...", messagePoolURL)
@@ -89,10 +121,11 @@ func main() {
 
 	// Step 2: Signal setup complete once pool is ready
 	lifecycle.SetupComplete(map[string]any{
-		"workload":         "receiver-workload",
-		"receiver_id":      receiverID,
-		"message_pool_url": messagePoolURL,
-		"poll_interval_ms": pollIntervalMS,
+		"workload":            "receiver-workload",
+		"receiver_id":         receiverID,
+		"message_pool_url":    messagePoolURL,
+		"poll_interval_ms":    pollIntervalMS,
+		"recipient_decryption": recipientDecryptEnabled,
 	})
 
 	// Step 3: Enter continuous poll loop
@@ -225,9 +258,25 @@ func fetchMessages() ([]Message, error) {
 
 // processNewMessage handles a newly seen message
 func processNewMessage(msg Message) {
-	// Attempt "decryption" (stub: always succeeds)
-	// In Plan 12, this will be real asymmetric decryption
-	decryptOK := stubDecrypt(msg)
+	var decryptOK bool
+	var decryptedContent string
+	var decryptError string
+
+	if recipientDecryptEnabled {
+		// Real decryption mode: attempt to decrypt with our private key
+		decryptedContent, decryptOK, decryptError = tryDecrypt(msg.Content)
+	} else {
+		// Stub mode: always succeeds, content is plaintext
+		decryptOK = true
+		decryptedContent = msg.Content
+	}
+
+	// Update statistics
+	if decryptOK {
+		decryptionSuccesses++
+	} else {
+		decryptionFailures++
+	}
 
 	// Record the message
 	received := ReceivedMessage{
@@ -240,32 +289,91 @@ func processNewMessage(msg Message) {
 	seenMessages[msg.ID] = received
 	seenMessagesMu.Unlock()
 
-	// Assert that decryption succeeds (stub mode: always true)
-	assert.Always(decryptOK, "decryption_succeeds", map[string]any{
-		"receiver_id":    receiverID,
-		"message_id":     msg.ID,
-		"message_content": msg.Content,
-		"stub_mode":      true,
-	})
+	// Assert on message format validity (parsing should succeed)
+	if recipientDecryptEnabled {
+		// In recipient decryption mode, message should be valid JSON
+		_, parseErr := crypto.ParseEncryptedMessage(msg.Content)
+		isValidFormat := parseErr == nil
+		assert.Always(isValidFormat, "message_format_valid", map[string]any{
+			"receiver_id":    receiverID,
+			"message_id":     msg.ID,
+			"is_valid_json":  isValidFormat,
+			"parse_error":    errToString(parseErr),
+		})
+	}
+
+	// Note: We don't assert Always(decryptOK) here because messages may be
+	// encrypted for OTHER recipients. That's expected and valid behavior.
+	// Instead, we track successes/failures and assert Sometimes on success.
+
+	// Assert that we sometimes successfully decrypt messages (proves decryption works)
+	if decryptOK {
+		assert.Sometimes(true, "messages_decrypted", map[string]any{
+			"receiver_id":         receiverID,
+			"message_id":          msg.ID,
+			"decryption_successes": decryptionSuccesses,
+			"decryption_failures":  decryptionFailures,
+			"decrypted_content":    truncateForLog(decryptedContent, 50),
+		})
+	}
 
 	// Assert that we sometimes receive messages (liveness check)
 	// This proves the end-to-end delivery pipeline works
 	assert.Sometimes(true, "messages_received", map[string]any{
-		"receiver_id":      receiverID,
-		"message_id":       msg.ID,
-		"total_received":   newMessagesSeen,
-		"message_content":  msg.Content,
+		"receiver_id":     receiverID,
+		"message_id":      msg.ID,
+		"total_received":  newMessagesSeen,
+		"decrypted":       decryptOK,
+		"recipient_mode":  recipientDecryptEnabled,
 	})
 
-	log.Printf("[%s] Received new message ID=%d Content=%q Decrypted=%v",
-		receiverID, msg.ID, msg.Content, decryptOK)
+	if decryptOK {
+		log.Printf("[%s] Received message ID=%d Decrypted=true Content=%q",
+			receiverID, msg.ID, truncateForLog(decryptedContent, 80))
+	} else {
+		log.Printf("[%s] Received message ID=%d Decrypted=false (not for us or invalid) Error=%s",
+			receiverID, msg.ID, decryptError)
+	}
 }
 
-// stubDecrypt simulates decryption (stub mode: always succeeds)
-// In Plan 12, this will be replaced with real asymmetric decryption
-func stubDecrypt(msg Message) bool {
-	// Stub mode: all decryption attempts succeed
-	// Future: Use receiver's private key to decrypt message content
-	_ = msg.Content // Would be decrypted in real implementation
-	return true
+// tryDecrypt attempts to decrypt message content using the receiver's private key.
+// Returns (decryptedContent, success, errorMessage)
+func tryDecrypt(content string) (string, bool, string) {
+	// Step 1: Try to parse as EncryptedMessage JSON
+	encMsg, err := crypto.ParseEncryptedMessage(content)
+	if err != nil {
+		// Not a valid encrypted message format - might be plaintext or other format
+		// Check if it looks like JSON at all
+		if strings.HasPrefix(strings.TrimSpace(content), "{") {
+			return "", false, "invalid encrypted message format: " + err.Error()
+		}
+		// Treat as plaintext (backward compatibility with non-encrypted messages)
+		return content, true, ""
+	}
+
+	// Step 2: Attempt decryption with our private key
+	plaintext, err := crypto.DecryptFromSender(encMsg, receiverPrivKey)
+	if err != nil {
+		// Decryption failed - message is likely encrypted for a different recipient
+		// This is expected behavior, not an error
+		return "", false, "decryption failed: " + err.Error()
+	}
+
+	return string(plaintext), true, ""
+}
+
+// truncateForLog truncates a string to maxLen characters for logging
+func truncateForLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// errToString converts an error to string, handling nil
+func errToString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

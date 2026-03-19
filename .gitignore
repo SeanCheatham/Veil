@@ -8,6 +8,7 @@
 /relay_health
 /receiver-workload
 /sender-workload
+/recipient_decryption
 
 # Dependencies
 vendor/

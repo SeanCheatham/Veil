@@ -258,6 +258,8 @@ services:
       - EPOCH_DURATION_SECONDS=60
       - COVER_TRAFFIC_RATE=0.5
       - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
+      # Recipient encryption (Plan 12) - X25519 public key
+      - RECIPIENT_PUBLIC_KEY=1RBXurzx2icqvhz8O+n4rjCI7GU5fbvu4K7gyp7K2D4=
     depends_on:
       relay-node0:
         condition: service_healthy
@@ -277,6 +279,11 @@ services:
     init: true
     environment:
       - MESSAGE_POOL_URL=http://message-pool:8082
+      - RECEIVER_ID=receiver-0
+      - POLL_INTERVAL_MS=500
+      # Recipient decryption (Plan 12) - X25519 key pair
+      - RECEIVER_PRIVATE_KEY=PrKd9jwttESuuuh+Im4nCrpD7iDdkepP7oUk2ekl2nI=
+      - RECEIVER_PUBLIC_KEY=1RBXurzx2icqvhz8O+n4rjCI7GU5fbvu4K7gyp7K2D4=
     depends_on:
       relay-node0:
         condition: service_healthy
@@ -429,6 +436,32 @@ services:
       - MESSAGE_POOL_URL=http://message-pool:8082
       - EPOCH_DURATION_SECONDS=60
       - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
+    depends_on:
+      relay-node0:
+        condition: service_healthy
+      relay-node1:
+        condition: service_healthy
+      relay-node2:
+        condition: service_healthy
+      relay-node3:
+        condition: service_healthy
+      relay-node4:
+        condition: service_healthy
+
+  # first_recipient_decryption - validates recipient-only decryption property (Plan 12)
+  first_recipient_decryption:
+    image: ${REGISTRY:-veil}/recipient_decryption:${TAG:-latest}
+    container_name: first_recipient_decryption
+    hostname: first_recipient_decryption
+    init: true
+    environment:
+      - RELAY_URL=http://relay-node0:8080
+      - MESSAGE_POOL_URL=http://message-pool:8082
+      - EPOCH_DURATION_SECONDS=60
+      - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
+      # Test seeds for deterministic key pair generation
+      - RECEIVER_A_SEED=test-seed-receiver-a-12345
+      - RECEIVER_B_SEED=test-seed-receiver-b-67890
     depends_on:
       relay-node0:
         condition: service_healthy
