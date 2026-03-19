@@ -91,3 +91,13 @@ services:
     build:
       context: ../..
       dockerfile: antithesis/workloads/consensus_test/Dockerfile
+
+  first_cover_traffic_test:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/cover_traffic_test/Dockerfile
+
+  first_epoch_rotation_test:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/epoch_rotation_test/Dockerfile

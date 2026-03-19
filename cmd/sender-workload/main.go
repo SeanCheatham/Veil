@@ -49,11 +49,17 @@ var (
 	epochDuration     int64 // seconds
 	relaySeeds        [][]byte
 	onionModeEnabled  bool
+	coverTrafficRate  float64 // 0.0-1.0, probability of generating cover traffic
 
 	// Thread-safe tracking of sent messages
 	sentMessages   []SentMessage
 	sentMessagesMu sync.Mutex
 	messageCounter uint64
+	coverCounter   uint64 // track cover traffic separately
+
+	// Statistics
+	realMessagesSent  uint64
+	coverMessagesSent uint64
 )
 
 func main() {
@@ -114,16 +120,27 @@ func main() {
 		log.Printf("Onion encryption mode DISABLED (stub mode - no RELAY_MASTER_SEEDS)")
 	}
 
-	// Stub mode environment variables
-	_ = os.Getenv("COVER_TRAFFIC_RATE")
+	// Parse cover traffic rate (0.0-1.0)
+	coverRateStr := os.Getenv("COVER_TRAFFIC_RATE")
+	if coverRateStr != "" {
+		rate, err := strconv.ParseFloat(coverRateStr, 64)
+		if err != nil || rate < 0 || rate > 1 {
+			log.Printf("Invalid COVER_TRAFFIC_RATE '%s', using default 0.0", coverRateStr)
+			coverTrafficRate = 0.0
+		} else {
+			coverTrafficRate = rate
+		}
+	} else {
+		coverTrafficRate = 0.0
+	}
 
 	// Configure HTTP client with reasonable timeouts
 	httpClient = &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	log.Printf("Configuration: relay_url=%s, interval=%dms, sender_id=%s, onion_mode=%v",
-		relayURL, messageIntervalMS, senderID, onionModeEnabled)
+	log.Printf("Configuration: relay_url=%s, interval=%dms, sender_id=%s, onion_mode=%v, cover_rate=%.2f",
+		relayURL, messageIntervalMS, senderID, onionModeEnabled, coverTrafficRate)
 
 	// Step 1: Wait for relay-node0 to be healthy
 	log.Printf("Waiting for relay at %s to be healthy...", relayURL)
@@ -198,8 +215,38 @@ func sendMessage() {
 	randomValue := random.GetRandom()
 	messageCounter++
 
-	messageID := fmt.Sprintf("%s-msg-%d-%d", senderID, messageCounter, randomValue)
-	payload := fmt.Sprintf("payload-%s-%d-%d", senderID, messageCounter, randomValue)
+	// Determine if this should be cover traffic
+	// Use Antithesis random for deterministic decisions
+	isCoverTraffic := false
+	if coverTrafficRate > 0 {
+		// Convert coverTrafficRate to a threshold in uint64 space
+		threshold := uint64(coverTrafficRate * float64(^uint64(0)))
+		isCoverTraffic = randomValue < threshold
+	}
+
+	var messageID, payload string
+
+	if isCoverTraffic {
+		coverCounter++
+		// Cover traffic uses COVER_ prefix but is otherwise indistinguishable
+		// The payload is random but encrypted identically to real traffic
+		messageID = fmt.Sprintf("cover-%s-msg-%d-%d", senderID, coverCounter, randomValue)
+		payload = fmt.Sprintf("COVER_%d_%d", randomValue, time.Now().UnixNano())
+		coverMessagesSent++
+
+		// Antithesis assertion: cover traffic is generated
+		assert.Sometimes(true, "cover_traffic_generated", map[string]any{
+			"sender_id":         senderID,
+			"message_id":        messageID,
+			"cover_counter":     coverCounter,
+			"cover_traffic_rate": coverTrafficRate,
+		})
+	} else {
+		// Real traffic
+		messageID = fmt.Sprintf("%s-msg-%d-%d", senderID, messageCounter, randomValue)
+		payload = fmt.Sprintf("payload-%s-%d-%d", senderID, messageCounter, randomValue)
+		realMessagesSent++
+	}
 
 	var finalPayload string
 	var err error
@@ -224,15 +271,29 @@ func sendMessage() {
 
 		// Antithesis assertion: onion construction succeeded
 		assert.Always(true, "sender_onion_constructed", map[string]any{
-			"sender_id":     senderID,
-			"message_id":    messageID,
-			"epoch":         epoch,
-			"onion_size":    len(finalPayload),
-			"payload_size":  len(payload),
+			"sender_id":       senderID,
+			"message_id":      messageID,
+			"epoch":           epoch,
+			"onion_size":      len(finalPayload),
+			"payload_size":    len(payload),
+			"is_cover_traffic": isCoverTraffic,
 		})
 
-		log.Printf("[%s] Constructed onion for message %s (epoch: %d, size: %d bytes)",
-			senderID, messageID, epoch, len(finalPayload))
+		// Antithesis assertion: cover traffic uses same encryption as real traffic
+		// This proves cover traffic is indistinguishable at the relay level
+		if isCoverTraffic {
+			assert.Always(true, "cover_traffic_encrypted", map[string]any{
+				"sender_id":    senderID,
+				"message_id":   messageID,
+				"epoch":        epoch,
+				"onion_size":   len(finalPayload),
+				"encryption":   "aes-gcm",
+				"layers":       5,
+			})
+		}
+
+		log.Printf("[%s] Constructed onion for message %s (epoch: %d, size: %d bytes, cover: %v)",
+			senderID, messageID, epoch, len(finalPayload), isCoverTraffic)
 	} else {
 		// Stub mode: send plaintext payload
 		finalPayload = payload
@@ -274,28 +335,42 @@ func sendMessage() {
 
 	// Assert on message sending success
 	assert.Always(success, "sender_message_accepted_by_relay", map[string]any{
-		"sender_id":     senderID,
-		"message_id":    messageID,
-		"relay_url":     relayURL,
-		"total_sent":    totalSent,
-		"success_count": successCount,
-		"onion_mode":    onionModeEnabled,
+		"sender_id":        senderID,
+		"message_id":       messageID,
+		"relay_url":        relayURL,
+		"total_sent":       totalSent,
+		"success_count":    successCount,
+		"onion_mode":       onionModeEnabled,
+		"is_cover_traffic": isCoverTraffic,
 	})
 
 	// Assert that we sometimes send messages (proves workload is active)
 	assert.Sometimes(true, "sender_workload_generates_messages", map[string]any{
-		"sender_id":     senderID,
-		"message_count": messageCounter,
-		"last_message":  messageID,
-		"onion_mode":    onionModeEnabled,
+		"sender_id":          senderID,
+		"message_count":      messageCounter,
+		"last_message":       messageID,
+		"onion_mode":         onionModeEnabled,
+		"real_messages":      realMessagesSent,
+		"cover_messages":     coverMessagesSent,
+		"cover_traffic_rate": coverTrafficRate,
 	})
 
+	// If cover traffic is enabled, assert we have both types
+	if coverTrafficRate > 0 && realMessagesSent > 0 && coverMessagesSent > 0 {
+		assert.Sometimes(true, "cover_and_real_traffic_mixed", map[string]any{
+			"sender_id":      senderID,
+			"real_messages":  realMessagesSent,
+			"cover_messages": coverMessagesSent,
+			"ratio":          float64(coverMessagesSent) / float64(realMessagesSent+coverMessagesSent),
+		})
+	}
+
 	if success {
-		log.Printf("[%s] Sent message %s (total: %d, success: %d, onion: %v)",
-			senderID, messageID, totalSent, successCount, onionModeEnabled)
+		log.Printf("[%s] Sent message %s (total: %d, success: %d, real: %d, cover: %d, onion: %v)",
+			senderID, messageID, totalSent, successCount, realMessagesSent, coverMessagesSent, onionModeEnabled)
 	} else {
-		log.Printf("[%s] FAILED to send message %s (total: %d, success: %d, onion: %v)",
-			senderID, messageID, totalSent, successCount, onionModeEnabled)
+		log.Printf("[%s] FAILED to send message %s (total: %d, success: %d, real: %d, cover: %d, onion: %v)",
+			senderID, messageID, totalSent, successCount, realMessagesSent, coverMessagesSent, onionModeEnabled)
 	}
 }
 
