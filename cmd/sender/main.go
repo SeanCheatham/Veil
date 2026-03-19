@@ -15,7 +15,9 @@ import (
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+	"github.com/veil-protocol/veil/pkg/cover"
 	"github.com/veil-protocol/veil/pkg/crypto"
+	"github.com/veil-protocol/veil/pkg/epoch"
 	"github.com/veil-protocol/veil/pkg/routing"
 )
 
@@ -123,6 +125,12 @@ func main() {
 		}
 	}
 
+	// Start epoch manager
+	epochDuration := epoch.DurationFromEnv()
+	epochMgr := epoch.NewManager(epochDuration)
+	epochMgr.Start()
+	log.Printf("epoch manager started with duration %v", epochDuration)
+
 	// Signal setup complete after discovery
 	lifecycle.SetupComplete(map[string]any{
 		"service": "sender",
@@ -198,6 +206,45 @@ func main() {
 		})
 
 		log.Printf("sent message %s via %s", msgID, firstRelayHost)
+
+		// Send 1-2 cover messages after each real message
+		coverCount := 1
+		if msgCount%2 == 0 {
+			coverCount = 2
+		}
+		for c := 0; c < coverCount; c++ {
+			coverRoute, err := routing.SelectRoute(relays, 3, 3)
+			if err != nil {
+				log.Printf("cover route selection failed: %v", err)
+				continue
+			}
+			coverPubKeys := make([]crypto.PublicKey, len(coverRoute))
+			coverHosts := make([]string, len(coverRoute))
+			for i, r := range coverRoute {
+				coverPubKeys[i] = r.PubKey
+				coverHosts[i] = r.Host
+			}
+			coverMsg, err := cover.GenerateCoverMessage(coverPubKeys, coverHosts)
+			if err != nil {
+				log.Printf("cover message generation failed: %v", err)
+				continue
+			}
+			coverB64 := base64.StdEncoding.EncodeToString(coverMsg)
+			coverBody, _ := json.Marshal(map[string]string{"ciphertext": coverB64})
+			coverRelayHost := coverRoute[0].Host
+			coverURL := fmt.Sprintf("http://%s/forward", coverRelayHost)
+			coverResp, err := http.Post(coverURL, "application/json", bytes.NewReader(coverBody))
+			if err != nil {
+				log.Printf("cover forward to %s failed: %v", coverRelayHost, err)
+				continue
+			}
+			coverResp.Body.Close()
+
+			assert.Sometimes(true, "cover_traffic_sent", map[string]any{
+				"epoch": epochMgr.GetCurrentEpoch(),
+			})
+			log.Printf("sent cover message via %s (epoch %d)", coverRelayHost, epochMgr.GetCurrentEpoch())
+		}
 	}
 }
 

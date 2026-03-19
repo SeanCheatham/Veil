@@ -11,6 +11,8 @@ import (
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+
+	"github.com/veil-protocol/veil/pkg/epoch"
 )
 
 type message struct {
@@ -68,6 +70,21 @@ func main() {
 	})
 
 	p := &pool{}
+
+	// Start epoch manager
+	epochDuration := epoch.DurationFromEnv()
+	epochMgr := epoch.NewManager(epochDuration)
+	epochMgr.OnEpochTick(func(epochNum uint64) {
+		assert.Sometimes(true, "pool_epoch_tracked", map[string]any{"epoch": epochNum})
+		log.Printf("epoch tick: %d", epochNum)
+	})
+	epochMgr.Start()
+	log.Printf("epoch manager started with duration %v", epochDuration)
+
+	http.HandleFunc("/epoch", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"epoch": epochMgr.GetCurrentEpoch()})
+	})
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
