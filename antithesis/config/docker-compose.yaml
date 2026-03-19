@@ -81,6 +81,141 @@ services:
       message-pool:
         condition: service_healthy
 
+  relay-1:
+    container_name: relay-1
+    hostname: relay-1
+    build:
+      context: ../..
+      dockerfile: Dockerfile.relay
+    image: ${ANTITHESIS_REPOSITORY}/relay:latest
+    expose:
+      - "8083"
+    init: true
+    environment:
+      - RELAY_ID=1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+      validator-1:
+        condition: service_healthy
+      validator-2:
+        condition: service_healthy
+      validator-3:
+        condition: service_healthy
+
+  relay-2:
+    container_name: relay-2
+    hostname: relay-2
+    build:
+      context: ../..
+      dockerfile: Dockerfile.relay
+    image: ${ANTITHESIS_REPOSITORY}/relay:latest
+    expose:
+      - "8083"
+    init: true
+    environment:
+      - RELAY_ID=2
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+      validator-1:
+        condition: service_healthy
+      validator-2:
+        condition: service_healthy
+      validator-3:
+        condition: service_healthy
+
+  relay-3:
+    container_name: relay-3
+    hostname: relay-3
+    build:
+      context: ../..
+      dockerfile: Dockerfile.relay
+    image: ${ANTITHESIS_REPOSITORY}/relay:latest
+    expose:
+      - "8083"
+    init: true
+    environment:
+      - RELAY_ID=3
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+      validator-1:
+        condition: service_healthy
+      validator-2:
+        condition: service_healthy
+      validator-3:
+        condition: service_healthy
+
+  relay-4:
+    container_name: relay-4
+    hostname: relay-4
+    build:
+      context: ../..
+      dockerfile: Dockerfile.relay
+    image: ${ANTITHESIS_REPOSITORY}/relay:latest
+    expose:
+      - "8083"
+    init: true
+    environment:
+      - RELAY_ID=4
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+      validator-1:
+        condition: service_healthy
+      validator-2:
+        condition: service_healthy
+      validator-3:
+        condition: service_healthy
+
+  relay-5:
+    container_name: relay-5
+    hostname: relay-5
+    build:
+      context: ../..
+      dockerfile: Dockerfile.relay
+    image: ${ANTITHESIS_REPOSITORY}/relay:latest
+    expose:
+      - "8083"
+    init: true
+    environment:
+      - RELAY_ID=5
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+      validator-1:
+        condition: service_healthy
+      validator-2:
+        condition: service_healthy
+      validator-3:
+        condition: service_healthy
+
   workload:
     container_name: workload
     hostname: workload
@@ -96,5 +231,15 @@ services:
       validator-2:
         condition: service_healthy
       validator-3:
+        condition: service_healthy
+      relay-1:
+        condition: service_healthy
+      relay-2:
+        condition: service_healthy
+      relay-3:
+        condition: service_healthy
+      relay-4:
+        condition: service_healthy
+      relay-5:
         condition: service_healthy
     init: true
