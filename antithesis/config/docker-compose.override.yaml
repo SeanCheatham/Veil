@@ -86,3 +86,8 @@ services:
     build:
       context: ../..
       dockerfile: antithesis/workloads/onion_integrity/Dockerfile
+
+  first_consensus_test:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/consensus_test/Dockerfile

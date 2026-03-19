@@ -376,3 +376,20 @@ services:
         condition: service_healthy
       relay-node4:
         condition: service_healthy
+
+  # first_consensus_test - validates PBFT consensus properties
+  first_consensus_test:
+    image: ${REGISTRY:-veil}/consensus_test:${TAG:-latest}
+    container_name: first_consensus_test
+    hostname: first_consensus_test
+    init: true
+    environment:
+      - VALIDATOR_URLS=http://validator-node0:8081,http://validator-node1:8081,http://validator-node2:8081
+      - MESSAGE_POOL_URL=http://message-pool:8082
+    depends_on:
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
