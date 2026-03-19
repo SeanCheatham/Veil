@@ -21,15 +21,16 @@ Veil hides not just message content but metadata — who is talking to whom, how
 
 **Language:** Go
 
-**Services (5 containers):**
+**Services (7 containers):**
 
-| Service | Scale | Role |
-|---|---|---|
-| `relay-node` | ×5 | Onion layer peeling, mix-and-forward |
-| `validator-node` | ×3 | BFT consensus, message pool ordering |
-| `message-pool` | ×1 | Append-only ciphertext store |
-| `sender-workload` | ×1 | Test driver: generates and sends messages |
-| `receiver-workload` | ×1 | Test driver: polls pool, asserts delivery |
+| Service | Port | Scale | Role |
+|---|---|---|---|
+| `message-pool` | 8081 | ×1 | Append-only ciphertext store |
+| `validator` | 8082 | ×3 | BFT consensus, message pool ordering |
+| `relay` | 8083 | ×5 | Onion layer peeling, mix-and-forward |
+| `sender` | 8084 | ×1 | Discovers relay/receiver keys, wraps and sends onion-encrypted messages |
+| `receiver` | 8085 | ×1 | Generates keypair, polls message pool, decrypts own messages |
+| `workload` | — | ×1 | Test Composer host: runs test command scripts |
 
 ---
 
