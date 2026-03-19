@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# anytime_ command: can run at any point during testing.
-# Picks a random validator, POSTs a ciphertext via /submit, then verifies
-# it appears in the message-pool.
+# eventually_ command: retried by Test Composer until it passes.
+# Picks a random validator, POSTs a ciphertext via /submit, then checks
+# if it appears in the message-pool. With BFT consensus batching, the
+# message may take several seconds to reach the pool.
 
 resolve_host() {
   getent hosts "$1" 2>/dev/null | awk '{print $1}' | head -1
@@ -40,35 +41,29 @@ POST_RESPONSE=$(wget -q -O - --timeout=10 \
 
 echo "POST response: $POST_RESPONSE"
 
-# Extract index from response — expect {"index":N}
-INDEX=$(echo "$POST_RESPONSE" | sed -n 's/.*"index":\([0-9]*\).*/\1/p')
-if [ -z "$INDEX" ]; then
-  echo "ERROR: could not parse index from POST response"
-  exit 1
-fi
-echo "Got index: $INDEX"
+# Wait for consensus batching to complete
+sleep 10
 
-# Verify the message appears in the pool by fetching from message-pool directly
-GET_RESPONSE=$(wget -q -O - --timeout=5 \
-  "http://message-pool:8081/messages/${INDEX}" 2>/dev/null) || {
+# Check if the ciphertext appears in the pool
+POOL_RESPONSE=$(wget -q -O - --timeout=5 \
+  "http://message-pool:8081/messages" 2>/dev/null) || {
   POOL_IP=$(resolve_host "message-pool")
   if [ -n "$POOL_IP" ]; then
-    GET_RESPONSE=$(wget -q -O - --timeout=5 \
-      "http://${POOL_IP}:8081/messages/${INDEX}" 2>/dev/null)
+    POOL_RESPONSE=$(wget -q -O - --timeout=5 \
+      "http://${POOL_IP}:8081/messages" 2>/dev/null)
   else
-    echo "ERROR: could not reach message-pool for GET"
+    echo "ERROR: could not reach message-pool"
     exit 1
   fi
 }
 
-echo "GET response: $GET_RESPONSE"
+echo "Pool response: $POOL_RESPONSE"
 
-# Verify the ciphertext matches
-RETURNED_CT=$(echo "$GET_RESPONSE" | sed -n 's/.*"ciphertext":"\([^"]*\)".*/\1/p')
-if [ "$RETURNED_CT" = "$CIPHERTEXT" ]; then
-  echo "SUCCESS: ciphertext submitted via $VALIDATOR_HOST matches in pool at index $INDEX"
+# Check if our ciphertext is in the pool
+if echo "$POOL_RESPONSE" | grep -q "$CIPHERTEXT"; then
+  echo "SUCCESS: ciphertext submitted via $VALIDATOR_HOST found in pool"
   exit 0
 else
-  echo "ERROR: ciphertext mismatch. Expected: $CIPHERTEXT Got: $RETURNED_CT"
+  echo "NOT YET: ciphertext not found in pool (consensus may still be batching)"
   exit 1
 fi

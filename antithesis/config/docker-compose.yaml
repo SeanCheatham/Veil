@@ -30,6 +30,7 @@ services:
     environment:
       - VALIDATOR_ID=1
       - LEADER_HOST=validator-1
+      - VALIDATOR_PEERS=validator-1:8082,validator-2:8082,validator-3:8082
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
       interval: 2s
@@ -52,6 +53,7 @@ services:
     environment:
       - VALIDATOR_ID=2
       - LEADER_HOST=validator-1
+      - VALIDATOR_PEERS=validator-1:8082,validator-2:8082,validator-3:8082
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
       interval: 2s
@@ -74,6 +76,7 @@ services:
     environment:
       - VALIDATOR_ID=3
       - LEADER_HOST=validator-1
+      - VALIDATOR_PEERS=validator-1:8082,validator-2:8082,validator-3:8082
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
       interval: 2s
