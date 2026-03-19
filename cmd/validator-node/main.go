@@ -83,6 +83,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/status", statusHandler)
 	mux.HandleFunc("/submit", submitHandler)
 
 	// Consensus endpoints
@@ -158,6 +159,13 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"view_number": pbft.GetViewNumber(),
 	}
 	json.NewEncoder(w).Encode(response)
+}
+
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	status := pbft.GetStatus()
+	json.NewEncoder(w).Encode(status)
 }
 
 func submitHandler(w http.ResponseWriter, r *http.Request) {

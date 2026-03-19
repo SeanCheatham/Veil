@@ -496,3 +496,34 @@ func (p *PBFT) IsCommitted(seqNum uint64) bool {
 	}
 	return false
 }
+
+// ValidatorStatus represents the current consensus state for status queries
+type ValidatorStatus struct {
+	ValidatorID   int    `json:"validator_id"`
+	ViewNumber    uint64 `json:"view_number"`
+	SeqNumber     uint64 `json:"seq_number"`
+	IsPrimary     bool   `json:"is_primary"`
+	CommittedMsgs int    `json:"committed_msgs"`
+}
+
+// GetStatus returns the current validator status for external queries
+func (p *PBFT) GetStatus() ValidatorStatus {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Count committed messages
+	committedCount := 0
+	for _, seqState := range p.sequences {
+		if seqState.committed {
+			committedCount++
+		}
+	}
+
+	return ValidatorStatus{
+		ValidatorID:   p.validatorID,
+		ViewNumber:    p.viewNumber,
+		SeqNumber:     p.nextSeqNumber,
+		IsPrimary:     p.validatorID == int(p.viewNumber%uint64(p.numValidators)),
+		CommittedMsgs: committedCount,
+	}
+}
