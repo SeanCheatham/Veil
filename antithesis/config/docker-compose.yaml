@@ -11,6 +11,8 @@ services:
     init: true
     environment:
       - EPOCH_DURATION=15s
+      - MAX_MESSAGE_AGE_EPOCHS=2
+      - MIN_ANONYMITY_SET=5
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
       interval: 2s
