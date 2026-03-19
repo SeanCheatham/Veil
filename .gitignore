@@ -6,6 +6,8 @@
 /validator_health
 /relay-node
 /relay_health
+/receiver-workload
+/sender-workload
 
 # Dependencies
 vendor/
