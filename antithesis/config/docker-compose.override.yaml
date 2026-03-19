@@ -2,6 +2,11 @@
 # Docker Compose automatically merges this with docker-compose.yaml
 
 services:
+  hello:
+    build:
+      context: ../..
+      dockerfile: cmd/hello/Dockerfile
+
   message-pool:
     build:
       context: ../..
@@ -56,3 +61,23 @@ services:
     build:
       context: ../..
       dockerfile: cmd/receiver-workload/Dockerfile
+
+  first_setup:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/first_setup/Dockerfile
+
+  first_pool_health:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/pool_health/Dockerfile
+
+  first_validator_health:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/validator_health/Dockerfile
+
+  first_relay_health:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/relay_health/Dockerfile
