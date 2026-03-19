@@ -1,0 +1,8 @@
+FROM alpine:3.19
+
+RUN apk add --no-cache curl bash
+
+COPY antithesis/test/v1/ /opt/antithesis/test/v1/
+RUN find /opt/antithesis/test/v1 -name '*.sh' -exec chmod +x {} +
+
+CMD ["bash", "-c", "tail -f /dev/null"]

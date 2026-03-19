@@ -1,0 +1,28 @@
+services:
+  hello:
+    container_name: hello
+    hostname: hello
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: ${ANTITHESIS_REPOSITORY}/hello:latest
+    expose:
+      - "8080"
+    init: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  workload:
+    container_name: workload
+    hostname: workload
+    build:
+      context: ../..
+      dockerfile: antithesis/test/Dockerfile.workload
+    image: ${ANTITHESIS_REPOSITORY}/workload:latest
+    depends_on:
+      hello:
+        condition: service_healthy
+    init: true
