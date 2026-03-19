@@ -10,7 +10,7 @@ services:
       - "8081"
     init: true
     environment:
-      - EPOCH_DURATION=30s
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
       interval: 2s
@@ -98,6 +98,7 @@ services:
     init: true
     environment:
       - RELAY_ID=1
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
       interval: 2s
@@ -125,6 +126,7 @@ services:
     init: true
     environment:
       - RELAY_ID=2
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
       interval: 2s
@@ -152,6 +154,7 @@ services:
     init: true
     environment:
       - RELAY_ID=3
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
       interval: 2s
@@ -179,6 +182,7 @@ services:
     init: true
     environment:
       - RELAY_ID=4
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
       interval: 2s
@@ -206,6 +210,7 @@ services:
     init: true
     environment:
       - RELAY_ID=5
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
       interval: 2s
@@ -231,6 +236,8 @@ services:
     expose:
       - "8085"
     init: true
+    environment:
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/health"]
       interval: 2s
@@ -253,7 +260,7 @@ services:
     environment:
       - RECEIVER_HOST=receiver
       - RECEIVER_PORT=8085
-      - EPOCH_DURATION=30s
+      - EPOCH_DURATION=15s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/health"]
       interval: 2s

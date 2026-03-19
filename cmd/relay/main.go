@@ -14,11 +14,12 @@ import (
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/veil-protocol/veil/pkg/crypto"
+	"github.com/veil-protocol/veil/pkg/epoch"
 )
 
 var (
 	relayID string
-	keyPair crypto.KeyPair
+	keyRing *crypto.KeyRing
 )
 
 func main() {
@@ -28,14 +29,31 @@ func main() {
 	}
 
 	var err error
-	keyPair, err = crypto.GenerateKeyPair()
+	keyRing, err = crypto.NewKeyRing()
 	if err != nil {
-		log.Fatalf("failed to generate keypair: %v", err)
+		log.Fatalf("failed to create key ring: %v", err)
 	}
 
 	assert.Always(true, "relay_started", map[string]any{
 		"relay_id": relayID,
 	})
+
+	// Start epoch manager and register key rotation callback
+	epochDuration := epoch.DurationFromEnv()
+	epochMgr := epoch.NewManager(epochDuration)
+	epochMgr.OnEpochTick(func(e uint64) {
+		if err := keyRing.Rotate(); err != nil {
+			log.Printf("relay-%s key rotation failed at epoch %d: %v", relayID, e, err)
+			return
+		}
+		log.Printf("relay-%s rotated keys at epoch %d", relayID, e)
+		assert.Sometimes(true, "relay_key_rotated", map[string]any{
+			"relay_id": relayID,
+			"epoch":    e,
+		})
+	})
+	epochMgr.Start()
+	log.Printf("relay-%s epoch manager started with duration %v", relayID, epochDuration)
 
 	http.HandleFunc("/health", handleHealth)
 	http.HandleFunc("/pubkey", handlePubKey)
@@ -57,11 +75,12 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePubKey(w http.ResponseWriter, r *http.Request) {
+	currentKP := keyRing.Current()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"relay_id":   relayID,
-		"public_key": base64.StdEncoding.EncodeToString(keyPair.Public[:]),
+		"public_key": base64.StdEncoding.EncodeToString(currentKP.Public[:]),
 	})
 }
 
@@ -100,7 +119,7 @@ func handleForward(w http.ResponseWriter, r *http.Request) {
 
 	originalSize := len(originalBytes)
 
-	innerCiphertext, nextHop, isFinal, err := crypto.PeelLayer(originalBytes, keyPair.Private)
+	innerCiphertext, nextHop, isFinal, err := keyRing.TryPeelLayer(originalBytes)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
