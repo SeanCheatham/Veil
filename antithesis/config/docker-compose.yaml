@@ -15,6 +15,72 @@ services:
       timeout: 5s
       retries: 10
 
+  validator-1:
+    container_name: validator-1
+    hostname: validator-1
+    build:
+      context: ../..
+      dockerfile: Dockerfile.validator
+    image: ${ANTITHESIS_REPOSITORY}/validator:latest
+    expose:
+      - "8082"
+    init: true
+    environment:
+      - VALIDATOR_ID=1
+      - LEADER_HOST=validator-1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
+  validator-2:
+    container_name: validator-2
+    hostname: validator-2
+    build:
+      context: ../..
+      dockerfile: Dockerfile.validator
+    image: ${ANTITHESIS_REPOSITORY}/validator:latest
+    expose:
+      - "8082"
+    init: true
+    environment:
+      - VALIDATOR_ID=2
+      - LEADER_HOST=validator-1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
+  validator-3:
+    container_name: validator-3
+    hostname: validator-3
+    build:
+      context: ../..
+      dockerfile: Dockerfile.validator
+    image: ${ANTITHESIS_REPOSITORY}/validator:latest
+    expose:
+      - "8082"
+    init: true
+    environment:
+      - VALIDATOR_ID=3
+      - LEADER_HOST=validator-1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
   workload:
     container_name: workload
     hostname: workload
@@ -24,5 +90,11 @@ services:
     image: ${ANTITHESIS_REPOSITORY}/workload:latest
     depends_on:
       message-pool:
+        condition: service_healthy
+      validator-1:
+        condition: service_healthy
+      validator-2:
+        condition: service_healthy
+      validator-3:
         condition: service_healthy
     init: true
