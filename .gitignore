@@ -10,6 +10,7 @@
 /sender-workload
 /recipient_decryption
 /parallel_driver
+/longevity
 
 # Dependencies
 vendor/

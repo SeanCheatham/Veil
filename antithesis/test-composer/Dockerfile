@@ -28,6 +28,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /bin/first_recipient_d
 
 # Build parallel_driver commands (run during faults)
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /bin/parallel_driver_message_sender ./antithesis/workloads/parallel_driver
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /bin/parallel_driver_longevity ./antithesis/workloads/longevity
 
 # Runtime stage
 FROM alpine:3.19
@@ -52,6 +53,7 @@ COPY --from=builder /bin/first_recipient_decryption /opt/antithesis/test/v1/veil
 
 # Copy parallel_driver commands (run during faults)
 COPY --from=builder /bin/parallel_driver_message_sender /opt/antithesis/test/v1/veil/parallel_driver_message_sender
+COPY --from=builder /bin/parallel_driver_longevity /opt/antithesis/test/v1/veil/parallel_driver_longevity
 
 # Ensure all binaries are executable
 RUN chmod +x /opt/antithesis/test/v1/veil/*

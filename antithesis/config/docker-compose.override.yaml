@@ -62,6 +62,11 @@ services:
       context: ../..
       dockerfile: cmd/receiver-workload/Dockerfile
 
+  longevity-workload:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/longevity/Dockerfile
+
   test-composer:
     build:
       context: ../..

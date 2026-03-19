@@ -296,6 +296,35 @@ services:
       relay-node4:
         condition: service_healthy
 
+  # Longevity workload - runs indefinitely for extended period validation
+  # Tracks cumulative statistics, epoch transitions, and delivery rates
+  longevity-workload:
+    image: ${REGISTRY:-veil}/longevity:${TAG:-latest}
+    container_name: longevity-workload
+    hostname: longevity-workload
+    init: true
+    environment:
+      - RELAY_URL=http://relay-node0:8080
+      - MESSAGE_POOL_URL=http://message-pool:8082
+      - VALIDATOR_URLS=http://validator-node0:8081,http://validator-node1:8081,http://validator-node2:8081
+      - EPOCH_DURATION_SECONDS=60
+      - REPORT_INTERVAL_SECONDS=300
+      - DELIVERY_THRESHOLD=0.8
+      - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
+      # For local validation, limit iterations (0 = unlimited for Antithesis)
+      - MAX_ITERATIONS=${MAX_ITERATIONS:-10}
+    depends_on:
+      relay-node0:
+        condition: service_healthy
+      relay-node1:
+        condition: service_healthy
+      relay-node2:
+        condition: service_healthy
+      relay-node3:
+        condition: service_healthy
+      relay-node4:
+        condition: service_healthy
+
   # Test Composer container - holds all first_* test commands in /opt/antithesis/test/v1/veil/
   # This container stays running with sleep infinity while Test Composer executes commands
   test-composer:
@@ -315,6 +344,9 @@ services:
       - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
       - RECEIVER_A_SEED=test-seed-receiver-a-12345
       - RECEIVER_B_SEED=test-seed-receiver-b-67890
+      # Longevity workload configuration
+      - REPORT_INTERVAL_SECONDS=300
+      - DELIVERY_THRESHOLD=0.8
       # For local validation, limit driver iterations (0 = unlimited for Antithesis)
       - MAX_ITERATIONS=${MAX_ITERATIONS:-10}
     depends_on:
