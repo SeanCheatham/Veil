@@ -216,6 +216,57 @@ services:
       validator-3:
         condition: service_healthy
 
+  receiver:
+    container_name: receiver
+    hostname: receiver
+    build:
+      context: ../..
+      dockerfile: Dockerfile.receiver
+    image: ${ANTITHESIS_REPOSITORY}/receiver:latest
+    expose:
+      - "8085"
+    init: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      message-pool:
+        condition: service_healthy
+
+  sender:
+    container_name: sender
+    hostname: sender
+    build:
+      context: ../..
+      dockerfile: Dockerfile.sender
+    image: ${ANTITHESIS_REPOSITORY}/sender:latest
+    expose:
+      - "8084"
+    init: true
+    environment:
+      - RECEIVER_HOST=receiver
+      - RECEIVER_PORT=8085
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      receiver:
+        condition: service_healthy
+      relay-1:
+        condition: service_healthy
+      relay-2:
+        condition: service_healthy
+      relay-3:
+        condition: service_healthy
+      relay-4:
+        condition: service_healthy
+      relay-5:
+        condition: service_healthy
+
   workload:
     container_name: workload
     hostname: workload
@@ -241,5 +292,9 @@ services:
       relay-4:
         condition: service_healthy
       relay-5:
+        condition: service_healthy
+      sender:
+        condition: service_healthy
+      receiver:
         condition: service_healthy
     init: true
