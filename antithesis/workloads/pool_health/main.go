@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 )
 
 // Message mirrors the message-pool Message struct
@@ -158,15 +157,6 @@ func main() {
 	assert.Always(foundInList, "message_pool_list_contains_message", map[string]any{
 		"message_id":  postedMessage.ID,
 		"total_count": len(allMessages),
-	})
-
-	// Signal setup complete - the service is reachable and functional
-	lifecycle.SetupComplete(map[string]any{
-		"workload":           "pool_health",
-		"pool_healthy":       true,
-		"message_stored":     true,
-		"message_retrieved":  true,
-		"integrity_verified": contentMatches,
 	})
 
 	fmt.Println("SUCCESS: services_reachable property validated (message-pool)")

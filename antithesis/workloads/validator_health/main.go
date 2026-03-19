@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 )
 
 // Message mirrors the message-pool Message struct
@@ -174,15 +173,6 @@ func main() {
 		"message_id":       messageID,
 		"consensus_type":   "stub",
 		"committed":        true,
-	})
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":                "validator_health",
-		"validators_healthy":      len(validatorURLs),
-		"message_submitted":       true,
-		"message_in_pool":         foundInPool,
-		"consensus_mode":          "stub",
 	})
 
 	fmt.Println("SUCCESS: services_reachable property validated (all 3 validators)")

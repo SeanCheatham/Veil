@@ -296,173 +296,38 @@ services:
       relay-node4:
         condition: service_healthy
 
-  # Test-composer workloads - run once before fault injection
-  # first_setup - validates services_reachable property
-  first_setup:
-    image: ${REGISTRY:-veil}/first_setup:${TAG:-latest}
-    container_name: first_setup
-    hostname: first_setup
+  # Test Composer container - holds all first_* test commands in /opt/antithesis/test/v1/veil/
+  # This container stays running with sleep infinity while Test Composer executes commands
+  test-composer:
+    image: ${REGISTRY:-veil}/test-composer:${TAG:-latest}
+    container_name: test-composer
+    hostname: test-composer
     init: true
     environment:
+      # Environment variables for all test commands
       - HELLO_URL=http://hello:8080
-    depends_on:
-      hello:
-        condition: service_healthy
-
-  # first_pool_health - validates message-pool health and append-only property
-  first_pool_health:
-    image: ${REGISTRY:-veil}/pool_health:${TAG:-latest}
-    container_name: first_pool_health
-    hostname: first_pool_health
-    init: true
-    environment:
       - MESSAGE_POOL_URL=http://message-pool:8082
-    depends_on:
-      message-pool:
-        condition: service_healthy
-
-  # first_validator_health - validates validator health, submit, and pool integration
-  first_validator_health:
-    image: ${REGISTRY:-veil}/validator_health:${TAG:-latest}
-    container_name: first_validator_health
-    hostname: first_validator_health
-    init: true
-    environment:
       - VALIDATOR_URLS=http://validator-node0:8081,http://validator-node1:8081,http://validator-node2:8081
-      - MESSAGE_POOL_URL=http://message-pool:8082
-    depends_on:
-      validator-node0:
-        condition: service_healthy
-      validator-node1:
-        condition: service_healthy
-      validator-node2:
-        condition: service_healthy
-
-  # first_relay_health - validates relay chain health and message propagation
-  first_relay_health:
-    image: ${REGISTRY:-veil}/relay_health:${TAG:-latest}
-    container_name: first_relay_health
-    hostname: first_relay_health
-    init: true
-    environment:
+      - RELAY_URL=http://relay-node0:8080
       - RELAY_URLS=http://relay-node0:8080,http://relay-node1:8080,http://relay-node2:8080,http://relay-node3:8080,http://relay-node4:8080
-      - MESSAGE_POOL_URL=http://message-pool:8082
-      - EPOCH_DURATION_SECONDS=60
-      - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
-    depends_on:
-      relay-node0:
-        condition: service_healthy
-      relay-node1:
-        condition: service_healthy
-      relay-node2:
-        condition: service_healthy
-      relay-node3:
-        condition: service_healthy
-      relay-node4:
-        condition: service_healthy
-
-  # first_onion_integrity - validates onion encryption properties
-  first_onion_integrity:
-    image: ${REGISTRY:-veil}/onion_integrity:${TAG:-latest}
-    container_name: first_onion_integrity
-    hostname: first_onion_integrity
-    init: true
-    environment:
-      - RELAY_URL=http://relay-node0:8080
-      - MESSAGE_POOL_URL=http://message-pool:8082
-      - EPOCH_DURATION_SECONDS=60
-      - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
-    depends_on:
-      relay-node0:
-        condition: service_healthy
-      relay-node1:
-        condition: service_healthy
-      relay-node2:
-        condition: service_healthy
-      relay-node3:
-        condition: service_healthy
-      relay-node4:
-        condition: service_healthy
-
-  # first_consensus_test - validates PBFT consensus properties
-  first_consensus_test:
-    image: ${REGISTRY:-veil}/consensus_test:${TAG:-latest}
-    container_name: first_consensus_test
-    hostname: first_consensus_test
-    init: true
-    environment:
-      - VALIDATOR_URLS=http://validator-node0:8081,http://validator-node1:8081,http://validator-node2:8081
-      - MESSAGE_POOL_URL=http://message-pool:8082
-    depends_on:
-      validator-node0:
-        condition: service_healthy
-      validator-node1:
-        condition: service_healthy
-      validator-node2:
-        condition: service_healthy
-
-  # first_cover_traffic_test - validates cover traffic generation and mixing
-  first_cover_traffic_test:
-    image: ${REGISTRY:-veil}/cover_traffic_test:${TAG:-latest}
-    container_name: first_cover_traffic_test
-    hostname: first_cover_traffic_test
-    init: true
-    environment:
-      - RELAY_URL=http://relay-node0:8080
-      - MESSAGE_POOL_URL=http://message-pool:8082
       - EPOCH_DURATION_SECONDS=60
       - COVER_TRAFFIC_RATE=0.5
       - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
-    depends_on:
-      relay-node0:
-        condition: service_healthy
-      relay-node1:
-        condition: service_healthy
-      relay-node2:
-        condition: service_healthy
-      relay-node3:
-        condition: service_healthy
-      relay-node4:
-        condition: service_healthy
-
-  # first_epoch_rotation_test - validates epoch key rotation properties
-  first_epoch_rotation_test:
-    image: ${REGISTRY:-veil}/epoch_rotation_test:${TAG:-latest}
-    container_name: first_epoch_rotation_test
-    hostname: first_epoch_rotation_test
-    init: true
-    environment:
-      - RELAY_URL=http://relay-node0:8080
-      - MESSAGE_POOL_URL=http://message-pool:8082
-      - EPOCH_DURATION_SECONDS=60
-      - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
-    depends_on:
-      relay-node0:
-        condition: service_healthy
-      relay-node1:
-        condition: service_healthy
-      relay-node2:
-        condition: service_healthy
-      relay-node3:
-        condition: service_healthy
-      relay-node4:
-        condition: service_healthy
-
-  # first_recipient_decryption - validates recipient-only decryption property (Plan 12)
-  first_recipient_decryption:
-    image: ${REGISTRY:-veil}/recipient_decryption:${TAG:-latest}
-    container_name: first_recipient_decryption
-    hostname: first_recipient_decryption
-    init: true
-    environment:
-      - RELAY_URL=http://relay-node0:8080
-      - MESSAGE_POOL_URL=http://message-pool:8082
-      - EPOCH_DURATION_SECONDS=60
-      - RELAY_MASTER_SEEDS=KzNhvFWQe7yR8pBwXdC4TmJgUoHaLsYx1q9nI3rE6Mk=,VpQcGtYw2hXjNsKmL8bFrDe5oU7iA0nZ4xWvJz3C1Hg=,BwS9fXkMnYz1pTqR7vO2hJc4uE6gLaI8xKdNmW0sAVe=,DqH4mZy5oP1tVw8nKjR3bF6iA9xSgLcE7uN2aWsXkMf=,FzK7pYn5wT0rMeB8jC1hXgU3vI6aLdS4oQsN9xWmEqH=
-      # Test seeds for deterministic key pair generation
       - RECEIVER_A_SEED=test-seed-receiver-a-12345
       - RECEIVER_B_SEED=test-seed-receiver-b-67890
+      # For local validation, limit driver iterations (0 = unlimited for Antithesis)
+      - MAX_ITERATIONS=${MAX_ITERATIONS:-10}
     depends_on:
+      hello:
+        condition: service_healthy
+      message-pool:
+        condition: service_healthy
+      validator-node0:
+        condition: service_healthy
+      validator-node1:
+        condition: service_healthy
+      validator-node2:
+        condition: service_healthy
       relay-node0:
         condition: service_healthy
       relay-node1:

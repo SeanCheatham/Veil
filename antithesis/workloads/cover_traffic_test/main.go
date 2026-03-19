@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/antithesishq/antithesis-sdk-go/random"
 	"github.com/veil/veil/internal/crypto"
 )
@@ -130,13 +129,6 @@ func main() {
 	// Step 4: Verify cover traffic reaches the pool
 	log.Println("Verifying cover traffic in message pool...")
 	testCoverTrafficInPool()
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":           "cover_traffic_test",
-		"cover_traffic_rate": coverTrafficRate,
-		"relay_chain":        true,
-	})
 
 	fmt.Println("SUCCESS: cover_traffic_generated property validated")
 	fmt.Println("SUCCESS: cover_traffic_encrypted property validated")

@@ -62,47 +62,7 @@ services:
       context: ../..
       dockerfile: cmd/receiver-workload/Dockerfile
 
-  first_setup:
+  test-composer:
     build:
       context: ../..
-      dockerfile: antithesis/workloads/first_setup/Dockerfile
-
-  first_pool_health:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/pool_health/Dockerfile
-
-  first_validator_health:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/validator_health/Dockerfile
-
-  first_relay_health:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/relay_health/Dockerfile
-
-  first_onion_integrity:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/onion_integrity/Dockerfile
-
-  first_consensus_test:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/consensus_test/Dockerfile
-
-  first_cover_traffic_test:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/cover_traffic_test/Dockerfile
-
-  first_epoch_rotation_test:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/epoch_rotation_test/Dockerfile
-
-  first_recipient_decryption:
-    build:
-      context: ../..
-      dockerfile: antithesis/workloads/recipient_decryption/Dockerfile
+      dockerfile: antithesis/test-composer/Dockerfile

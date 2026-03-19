@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 )
 
 func main() {
@@ -57,12 +56,6 @@ func main() {
 	if !healthy {
 		log.Fatal("Hello service did not become healthy")
 	}
-
-	// Signal setup complete - the service is reachable
-	lifecycle.SetupComplete(map[string]any{
-		"workload":      "first_setup",
-		"hello_healthy": true,
-	})
 
 	fmt.Println("SUCCESS: services_reachable property validated")
 	fmt.Println("first_setup workload completed successfully")

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/veil/veil/internal/crypto"
 )
 
@@ -255,16 +254,6 @@ func main() {
 		"hops":          6,
 		"delivery_time": "< 5s",
 		"onion_mode":    onionModeEnabled,
-	})
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":               "relay_health",
-		"relays_healthy":         len(relayURLs),
-		"message_relayed":        true,
-		"message_in_pool":        foundInPool,
-		"relay_chain_functional": true,
-		"onion_mode":             onionModeEnabled,
 	})
 
 	fmt.Println("SUCCESS: services_reachable property validated (all 5 relays)")

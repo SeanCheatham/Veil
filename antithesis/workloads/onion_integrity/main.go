@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/veil/veil/internal/crypto"
 )
 
@@ -122,15 +121,6 @@ func main() {
 	// Step 5: Test decryption with wrong key fails
 	log.Println("Testing decryption isolation...")
 	testDecryptionIsolation()
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":                "onion_integrity",
-		"relay_chain_functional":  true,
-		"onion_construction":      true,
-		"onion_routing":           true,
-		"decryption_isolation":    true,
-	})
 
 	fmt.Println("SUCCESS: onion_construction_succeeds property validated")
 	fmt.Println("SUCCESS: message_survives_relay_chain property validated")

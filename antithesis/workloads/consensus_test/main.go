@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 )
 
 // Message mirrors the message-pool Message struct
@@ -252,16 +251,6 @@ func main() {
 		"primary_id":        primaryID,
 		"messages_submitted": len(messageIDs) + 1, // +1 for first test message
 		"all_committed":     true,
-	})
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":            "consensus_test",
-		"validators_healthy":  len(validatorURLs),
-		"primary_id":          primaryID,
-		"messages_submitted":  len(messageIDs) + 1,
-		"sequence_monotonic":  sequenceMonotonic,
-		"non_primary_rejects": nonPrimaryRejected,
 	})
 
 	fmt.Println("SUCCESS: single_primary property validated (exactly 1 primary)")

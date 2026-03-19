@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/veil/veil/internal/crypto"
 	"github.com/veil/veil/internal/epoch"
 )
@@ -128,13 +127,6 @@ func main() {
 	// Step 5: Verify wrong epoch key fails decryption
 	log.Println("Testing epoch key isolation...")
 	testEpochKeyIsolation()
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":       "epoch_rotation_test",
-		"epoch_duration": epochDuration,
-		"relay_chain":    true,
-	})
 
 	fmt.Println("SUCCESS: epoch_key_rotation property validated")
 	fmt.Println("SUCCESS: epoch_key_derivation_correct property validated")

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
-	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/veil/veil/internal/crypto"
 )
 
@@ -150,15 +149,6 @@ func main() {
 	// Step 5: Test end-to-end through relay chain
 	log.Println("Testing end-to-end recipient decryption through relay chain...")
 	testEndToEndDecryption()
-
-	// Signal setup complete
-	lifecycle.SetupComplete(map[string]any{
-		"workload":                     "recipient_decryption",
-		"recipient_encryption":         true,
-		"recipient_decryption_success": true,
-		"non_recipient_fails":          true,
-		"end_to_end":                   true,
-	})
 
 	fmt.Println("SUCCESS: recipient_decryption_success property validated")
 	fmt.Println("SUCCESS: non_recipient_fails property validated")
