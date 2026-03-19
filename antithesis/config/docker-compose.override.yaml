@@ -81,3 +81,8 @@ services:
     build:
       context: ../..
       dockerfile: antithesis/workloads/relay_health/Dockerfile
+
+  first_onion_integrity:
+    build:
+      context: ../..
+      dockerfile: antithesis/workloads/onion_integrity/Dockerfile

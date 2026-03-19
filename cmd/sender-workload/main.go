@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
 	"github.com/antithesishq/antithesis-sdk-go/random"
+	"github.com/veil/veil/internal/crypto"
 )
 
 // RelayRequest represents the message format for the relay /relay endpoint
@@ -43,6 +46,9 @@ var (
 	messageIntervalMS int
 	senderID          string
 	httpClient        *http.Client
+	epochDuration     int64 // seconds
+	relaySeeds        [][]byte
+	onionModeEnabled  bool
 
 	// Thread-safe tracking of sent messages
 	sentMessages   []SentMessage
@@ -75,8 +81,40 @@ func main() {
 		senderID = "sender-0"
 	}
 
-	// Stub mode environment variables (ignored for now, will be used in future plans)
-	_ = os.Getenv("EPOCH_DURATION_SECONDS")
+	// Parse epoch duration
+	epochStr := os.Getenv("EPOCH_DURATION_SECONDS")
+	if epochStr == "" {
+		epochStr = "60"
+	}
+	epochDuration, err = strconv.ParseInt(epochStr, 10, 64)
+	if err != nil {
+		log.Printf("Invalid EPOCH_DURATION_SECONDS '%s', using default 60", epochStr)
+		epochDuration = 60
+	}
+
+	// Parse relay master seeds (comma-separated base64 strings)
+	seedsStr := os.Getenv("RELAY_MASTER_SEEDS")
+	if seedsStr != "" {
+		seedParts := strings.Split(seedsStr, ",")
+		if len(seedParts) != 5 {
+			log.Fatalf("RELAY_MASTER_SEEDS must contain exactly 5 comma-separated seeds, got %d", len(seedParts))
+		}
+		relaySeeds = make([][]byte, 5)
+		for i, s := range seedParts {
+			seed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(s))
+			if err != nil {
+				log.Fatalf("Failed to decode relay seed %d: %v", i, err)
+			}
+			relaySeeds[i] = seed
+		}
+		onionModeEnabled = true
+		log.Printf("Onion encryption mode ENABLED (5 relay seeds loaded)")
+	} else {
+		onionModeEnabled = false
+		log.Printf("Onion encryption mode DISABLED (stub mode - no RELAY_MASTER_SEEDS)")
+	}
+
+	// Stub mode environment variables
 	_ = os.Getenv("COVER_TRAFFIC_RATE")
 
 	// Configure HTTP client with reasonable timeouts
@@ -84,8 +122,8 @@ func main() {
 		Timeout: 10 * time.Second,
 	}
 
-	log.Printf("Configuration: relay_url=%s, interval=%dms, sender_id=%s",
-		relayURL, messageIntervalMS, senderID)
+	log.Printf("Configuration: relay_url=%s, interval=%dms, sender_id=%s, onion_mode=%v",
+		relayURL, messageIntervalMS, senderID, onionModeEnabled)
 
 	// Step 1: Wait for relay-node0 to be healthy
 	log.Printf("Waiting for relay at %s to be healthy...", relayURL)
@@ -100,6 +138,8 @@ func main() {
 		"sender_id":           senderID,
 		"relay_url":           relayURL,
 		"message_interval_ms": messageIntervalMS,
+		"onion_mode":          onionModeEnabled,
+		"epoch_duration_s":    epochDuration,
 	})
 
 	// Step 3: Enter continuous message generation loop
@@ -161,16 +201,53 @@ func sendMessage() {
 	messageID := fmt.Sprintf("%s-msg-%d-%d", senderID, messageCounter, randomValue)
 	payload := fmt.Sprintf("payload-%s-%d-%d", senderID, messageCounter, randomValue)
 
+	var finalPayload string
+	var err error
+
+	if onionModeEnabled {
+		// Calculate current epoch
+		epoch := uint64(time.Now().Unix() / epochDuration)
+
+		// Wrap payload in 5-layer onion
+		finalPayload, err = crypto.WrapOnion(relaySeeds, epoch, messageID, payload)
+		if err != nil {
+			log.Printf("[%s] Failed to construct onion: %v", senderID, err)
+			// Antithesis assertion: onion construction should always succeed
+			assert.Always(false, "sender_onion_constructed", map[string]any{
+				"sender_id":  senderID,
+				"message_id": messageID,
+				"error":      err.Error(),
+				"epoch":      epoch,
+			})
+			return
+		}
+
+		// Antithesis assertion: onion construction succeeded
+		assert.Always(true, "sender_onion_constructed", map[string]any{
+			"sender_id":     senderID,
+			"message_id":    messageID,
+			"epoch":         epoch,
+			"onion_size":    len(finalPayload),
+			"payload_size":  len(payload),
+		})
+
+		log.Printf("[%s] Constructed onion for message %s (epoch: %d, size: %d bytes)",
+			senderID, messageID, epoch, len(finalPayload))
+	} else {
+		// Stub mode: send plaintext payload
+		finalPayload = payload
+	}
+
 	// Create relay request
 	req := RelayRequest{
-		Payload:   payload,
+		Payload:   finalPayload,
 		MessageID: messageID,
 	}
 
 	// Track the message
 	sentMsg := SentMessage{
 		MessageID: messageID,
-		Payload:   payload,
+		Payload:   payload, // Track original payload, not the onion
 		SentAt:    time.Now(),
 		Success:   false,
 	}
@@ -197,26 +274,28 @@ func sendMessage() {
 
 	// Assert on message sending success
 	assert.Always(success, "sender_message_accepted_by_relay", map[string]any{
-		"sender_id":   senderID,
-		"message_id":  messageID,
-		"relay_url":   relayURL,
-		"total_sent":  totalSent,
+		"sender_id":     senderID,
+		"message_id":    messageID,
+		"relay_url":     relayURL,
+		"total_sent":    totalSent,
 		"success_count": successCount,
+		"onion_mode":    onionModeEnabled,
 	})
 
 	// Assert that we sometimes send messages (proves workload is active)
 	assert.Sometimes(true, "sender_workload_generates_messages", map[string]any{
-		"sender_id":      senderID,
-		"message_count":  messageCounter,
-		"last_message":   messageID,
+		"sender_id":     senderID,
+		"message_count": messageCounter,
+		"last_message":  messageID,
+		"onion_mode":    onionModeEnabled,
 	})
 
 	if success {
-		log.Printf("[%s] Sent message %s (total: %d, success: %d)",
-			senderID, messageID, totalSent, successCount)
+		log.Printf("[%s] Sent message %s (total: %d, success: %d, onion: %v)",
+			senderID, messageID, totalSent, successCount, onionModeEnabled)
 	} else {
-		log.Printf("[%s] FAILED to send message %s (total: %d, success: %d)",
-			senderID, messageID, totalSent, successCount)
+		log.Printf("[%s] FAILED to send message %s (total: %d, success: %d, onion: %v)",
+			senderID, messageID, totalSent, successCount, onionModeEnabled)
 	}
 }
 
