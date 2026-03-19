@@ -1,16 +1,16 @@
 services:
-  hello:
-    container_name: hello
-    hostname: hello
+  message-pool:
+    container_name: message-pool
+    hostname: message-pool
     build:
       context: ../..
-      dockerfile: Dockerfile
-    image: ${ANTITHESIS_REPOSITORY}/hello:latest
+      dockerfile: Dockerfile.message-pool
+    image: ${ANTITHESIS_REPOSITORY}/message-pool:latest
     expose:
-      - "8080"
+      - "8081"
     init: true
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
       interval: 2s
       timeout: 5s
       retries: 10
@@ -23,6 +23,6 @@ services:
       dockerfile: antithesis/test/Dockerfile.workload
     image: ${ANTITHESIS_REPOSITORY}/workload:latest
     depends_on:
-      hello:
+      message-pool:
         condition: service_healthy
     init: true
